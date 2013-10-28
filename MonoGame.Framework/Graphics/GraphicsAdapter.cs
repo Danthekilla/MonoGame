@@ -45,7 +45,7 @@ using System.Collections.ObjectModel;
 #if MONOMAC
 using MonoMac.AppKit;
 using MonoMac.Foundation;
-#elif IPHONE
+#elif IOS
 using MonoTouch.UIKit;
 #elif ANDROID
 using Android.Views;
@@ -64,7 +64,7 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             _screen = screen;
         }
-#elif IPHONE
+#elif IOS
 		private UIScreen _screen;
         internal GraphicsAdapter(UIScreen screen)
         {
@@ -99,14 +99,14 @@ namespace Microsoft.Xna.Framework.Graphics
                                        (int)_screen.Frame.Height,
                                        refreshRate,
                                        format);
-#elif IPHONE
+#elif IOS
                 return new DisplayMode((int)(_screen.Bounds.Width * _screen.Scale),
                        (int)(_screen.Bounds.Height * _screen.Scale),
                        60,
                        SurfaceFormat.Color);
 #elif ANDROID
                 return new DisplayMode(_view.Width, _view.Height, 60, SurfaceFormat.Color);
-#elif WINDOWS || LINUX
+#elif (WINDOWS && OPENGL) || LINUX
 
                 return new DisplayMode(OpenTK.DisplayDevice.Default.Width, OpenTK.DisplayDevice.Default.Height, (int)OpenTK.DisplayDevice.Default.RefreshRate, SurfaceFormat.Color);
 #else
@@ -130,7 +130,7 @@ namespace Microsoft.Xna.Framework.Graphics
                     }
                     
                     adapters = new ReadOnlyCollection<GraphicsAdapter>(tmpAdapters);
-#elif IPHONE
+#elif IOS
 					adapters = new ReadOnlyCollection<GraphicsAdapter>(
 						new GraphicsAdapter[] {new GraphicsAdapter(UIScreen.MainScreen)});
 #elif ANDROID
@@ -144,6 +144,7 @@ namespace Microsoft.Xna.Framework.Graphics
             }
         } 
 		
+        /*
 		public bool QueryRenderTargetFormat(
 			GraphicsProfile graphicsProfile,
 			SurfaceFormat format,
@@ -243,6 +244,7 @@ namespace Microsoft.Xna.Framework.Graphics
                 throw new NotImplementedException();
             }
         }
+        */
 
         private DisplayModeCollection supportedDisplayModes = null;
         
@@ -254,7 +256,7 @@ namespace Microsoft.Xna.Framework.Graphics
                 if (supportedDisplayModes == null)
                 {
                     List<DisplayMode> modes = new List<DisplayMode>(new DisplayMode[] { CurrentDisplayMode, });
-#if WINDOWS || LINUX
+#if (WINDOWS && OPENGL) || LINUX
                     IList<OpenTK.DisplayDevice> displays = OpenTK.DisplayDevice.AvailableDisplays;
                     if (displays.Count > 0)
                     {
@@ -289,6 +291,7 @@ namespace Microsoft.Xna.Framework.Graphics
             }
         }
 
+        /*
         public int VendorId
         {
             get
@@ -296,6 +299,7 @@ namespace Microsoft.Xna.Framework.Graphics
                 throw new NotImplementedException();
             }
         }
+        */
     }
 }
 

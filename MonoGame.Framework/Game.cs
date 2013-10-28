@@ -69,7 +69,7 @@ non-infringement.
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-#if !PSS
+#if !PSM
 using System.Drawing;
 #endif
 using System.IO;
@@ -79,7 +79,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Activation;
 #endif
-
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
@@ -122,7 +122,7 @@ namespace Microsoft.Xna.Framework
         private bool _initialized = false;
         private bool _isFixedTimeStep = true;
 
-        private TimeSpan _targetElapsedTime = TimeSpan.FromSeconds(1 / DefaultTargetFramesPerSecond);
+        private TimeSpan _targetElapsedTime = TimeSpan.FromTicks((long)10000000 / (long)DefaultTargetFramesPerSecond);
         private TimeSpan _inactiveSleepTime = TimeSpan.FromSeconds(1);
 
         private readonly TimeSpan _maxElapsedTime = TimeSpan.FromMilliseconds(500);
@@ -143,24 +143,30 @@ namespace Microsoft.Xna.Framework
             Platform.Deactivated += OnDeactivated;
             _services.AddService(typeof(GamePlatform), Platform);
 
-#if WINRT
+#if WINDOWS_STOREAPP
             Platform.ViewStateChanged += Platform_ApplicationViewChanged;
-#endif //WINRT
+#endif
 
 #if MONOMAC || WINDOWS || LINUX
+            
             // Set the window title.
             // TODO: Get the title from the WindowsPhoneManifest.xml for WP7 projects.
             string windowTitle = string.Empty;
+
+            // When running unit tests this can return null.
             var assembly = Assembly.GetEntryAssembly();
+            if (assembly != null)
+            {
+                //Use the Title attribute of the Assembly if possible.
+                var assemblyTitleAtt = ((AssemblyTitleAttribute)AssemblyTitleAttribute.GetCustomAttribute(assembly, typeof(AssemblyTitleAttribute)));
+                if (assemblyTitleAtt != null)
+                    windowTitle = assemblyTitleAtt.Title;
 
-            //Use the Title attribute of the Assembly if possible.
-            var assemblyTitleAtt = ((AssemblyTitleAttribute)AssemblyTitleAttribute.GetCustomAttribute(assembly, typeof(AssemblyTitleAttribute)));
-            if (assemblyTitleAtt != null)
-                windowTitle = assemblyTitleAtt.Title;
+                // Otherwise, fallback to the Name of the assembly.
+                if (string.IsNullOrEmpty(windowTitle))
+                    windowTitle = assembly.GetName().Name;
+            }
 
-            // Otherwise, fallback to the Name of the assembly.
-            if (string.IsNullOrEmpty(windowTitle))
-                windowTitle = assembly.GetName().Name;
             Window.Title = windowTitle;
 #endif
         }
@@ -199,9 +205,13 @@ namespace Microsoft.Xna.Framework
                         if (disposable != null)
                             disposable.Dispose();
                     }
+                    _components = null;
 
                     if (Content != null)
+                    {
                         Content.Dispose();
+                        Content = null;
+                    }
 
                     if (_graphicsDeviceManager != null)
                     {
@@ -209,9 +219,43 @@ namespace Microsoft.Xna.Framework
                         _graphicsDeviceManager = null;
                     }
 
-                    Platform.Dispose();
+                    if (Platform != null)
+                    {
+                        Platform.Activated -= OnActivated;
+                        Platform.Deactivated -= OnDeactivated;
+                        _services.RemoveService(typeof(GamePlatform));
+#if WINDOWS_STOREAPP
+                        Platform.ViewStateChanged -= Platform_ApplicationViewChanged;
+#endif
+                        Platform.Dispose();
+                        Platform = null;
+                    }
+
+                    Effect.FlushCache();
+                    ContentTypeReaderManager.ClearTypeCreators();
+
+#if WINDOWS_PHONE
+                    TouchPanel.ResetState();                    
+#endif
+
+#if WINDOWS_MEDIA_SESSION
+                    Media.MediaManagerState.CheckShutdown();
+#endif
+
+#if DIRECTX
+                    SoundEffect.Shutdown();
+
+                    BlendState.ResetStates();
+                    DepthStencilState.ResetStates();
+                    RasterizerState.ResetStates();
+                    SamplerState.ResetStates();
+#endif
                 }
+#if ANDROID
+                Activity = null;
+#endif
                 _isDisposed = true;
+                _instance = null;
             }
         }
 
@@ -231,6 +275,7 @@ namespace Microsoft.Xna.Framework
         #region Properties
 
 #if ANDROID
+		[CLSCompliant(false)]
         public static AndroidGameActivity Activity { get; set; }
 #endif
         private static Game _instance = null;
@@ -316,6 +361,7 @@ namespace Microsoft.Xna.Framework
         }
 
 #if ANDROID
+		[CLSCompliant(false)]
         public AndroidGameWindow Window
         {
             get { return Platform.Window; }
@@ -349,8 +395,13 @@ namespace Microsoft.Xna.Framework
         public event EventHandler<EventArgs> Disposed;
         public event EventHandler<EventArgs> Exiting;
 
-#if WINRT
+#if WINDOWS_STOREAPP
+        [CLSCompliant(false)]
         public event EventHandler<ViewStateChangedEventArgs> ApplicationViewChanged;
+#endif
+
+#if WINRT
+        [CLSCompliant(false)]
         public ApplicationExecutionState PreviousExecutionState { get; internal set; }
 #endif
 
@@ -426,7 +477,7 @@ namespace Microsoft.Xna.Framework
 				DoExiting();
                 break;
             default:
-                throw new NotImplementedException(string.Format(
+                throw new ArgumentException(string.Format(
                     "Handling for the run behavior {0} is not implemented.", runBehavior));
             }
         }
@@ -502,6 +553,8 @@ namespace Microsoft.Xna.Framework
                 _gameTime.ElapsedGameTime = _accumulatedElapsedTime;
                 _gameTime.TotalGameTime += _accumulatedElapsedTime;
                 _accumulatedElapsedTime = TimeSpan.Zero;
+                // Always set the RunningSlowly flag to false here when we are in fast-as-possible mode.
+                _gameTime.IsRunningSlowly = false;
 
                 DoUpdate(_gameTime);
             }
@@ -605,9 +658,6 @@ namespace Microsoft.Xna.Framework
         private void Components_ComponentAdded(
             object sender, GameComponentCollectionEventArgs e)
         {
-            // Since we only subscribe to ComponentAdded after the graphics
-            // devices are set up, it is safe to just blindly call Initialize.
-            e.GameComponent.Initialize();
             CategorizeComponent(e.GameComponent);
         }
 
@@ -627,7 +677,7 @@ namespace Microsoft.Xna.Framework
 			DoExiting();
         }
 
-#if WINRT
+#if WINDOWS_STOREAPP
         private void Platform_ApplicationViewChanged(object sender, ViewStateChangedEventArgs e)
         {
             AssertNotDisposed();
@@ -690,12 +740,22 @@ namespace Microsoft.Xna.Framework
 		{
 			OnExiting(this, EventArgs.Empty);
 			UnloadContent();
+
+#if DIRECTX
+		    SoundEffect.Shutdown();
+#endif
+
+#if WINDOWS_MEDIA_SESSION
+            Media.MediaManagerState.CheckShutdown();
+#endif
 		}
 
         internal void ResizeWindow(bool changed)
         {
-#if LINUX || WINDOWS
+#if LINUX || (WINDOWS && OPENGL)
             ((OpenTKGamePlatform)Platform).ResetWindowBounds(changed);
+#elif WINDOWS && DIRECTX
+            ((MonoGame.Framework.WinFormsGamePlatform)Platform).ResetWindowBounds(changed);
 #endif
         }
 
@@ -720,8 +780,6 @@ namespace Microsoft.Xna.Framework
         // NOTE: InitializeExistingComponents really should only be called once.
         //       Game.Initialize is the only method in a position to guarantee
         //       that no component will get a duplicate Initialize call.
-        //       Further calls to Initialize occur immediately in response to
-        //       Components.ComponentAdded.
         private void InitializeExistingComponents()
         {
             // TODO: Would be nice to get rid of this copy, but since it only

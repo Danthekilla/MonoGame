@@ -2,10 +2,12 @@ using System;
 using System.Runtime.InteropServices;
 
 
+#if OPENGL
 #if MONOMAC
 using MonoMac.OpenGL;
 #elif WINDOWS || LINUX
 using OpenTK.Graphics.OpenGL;
+#endif
 #endif
 
 namespace Microsoft.Xna.Framework.Graphics
@@ -51,14 +53,11 @@ namespace Microsoft.Xna.Framework.Graphics
             if (!IsDisposed)
             {
 #if OPENGL
-                if ((GraphicsDevice != null) && !GraphicsDevice.IsDisposed)
-                {
-                    GraphicsDevice.AddDisposeAction(() =>
-                        {
-                            GL.DeleteQueries(1, ref glQueryId);
-                            GraphicsExtensions.CheckGLError();
-                        });
-                }
+                GraphicsDevice.AddDisposeAction(() =>
+                    {
+                        GL.DeleteQueries(1, ref glQueryId);
+                        GraphicsExtensions.CheckGLError();
+                    });
 #elif DIRECTX
 #endif
             }

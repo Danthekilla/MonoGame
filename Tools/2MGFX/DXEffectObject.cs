@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Diagnostics;
 
 namespace Microsoft.Xna.Framework.Graphics
 {
@@ -328,6 +326,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			public uint state_count;
 			public uint annotation_count;
 
+			public BlendState blendState;
+			public DepthStencilState depthStencilState;
+			public RasterizerState rasterizerState;
+
 			public d3dx_state[] states;
 			public d3dx_parameter[] annotation_handles;
 		}
@@ -580,11 +582,6 @@ namespace Microsoft.Xna.Framework.Graphics
         {
 			switch (type) 
             {
-			    default:
-                    //throw new NotImplementedException();
-
-                case DXEffectObject.D3DXPARAMETER_TYPE.VOID:
-				    return EffectParameterType.Void;
 			    case DXEffectObject.D3DXPARAMETER_TYPE.BOOL:
                     return EffectParameterType.Bool;
 			    case DXEffectObject.D3DXPARAMETER_TYPE.INT:
@@ -603,6 +600,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				    return EffectParameterType.Texture3D;
 			    case DXEffectObject.D3DXPARAMETER_TYPE.TEXTURECUBE:
 				    return  EffectParameterType.TextureCube;
+                default:
+                    throw new NotImplementedException();
 			}
         }
 
@@ -658,7 +657,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
             return -1;
         }
-        
+
         public d3dx_parameter[] Objects { get; private set; }
 
         public d3dx_parameter[] Parameters { get; private set; }

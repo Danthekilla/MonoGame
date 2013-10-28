@@ -92,9 +92,10 @@ namespace Microsoft.Xna.Framework.Storage
 	// it will call asynchronously.
 	public delegate StorageContainer OpenContainerAsynchronous (string displayName);
 	
-	// Summary:
-	//     Represents a storage device for user data, such as a memory unit or hard
-	//     drive. Reference page contains links to related conceptual articles.
+    /// <summary>
+    /// Exposes a storage device for storing user data.
+    /// </summary>
+    /// <remarks>MSDN documentation contains related conceptual article: http://msdn.microsoft.com/en-us/library/bb200105.aspx</remarks>
 	public sealed class StorageDevice
 	{
 		
@@ -103,6 +104,12 @@ namespace Microsoft.Xna.Framework.Storage
 		int directoryCount;
 		StorageContainer storageContainer;
 		
+        /// <summary>
+        /// Creates a new <see cref="StorageDevice"/> instance.
+        /// </summary>
+        /// <param name="player">The playerIndex of the player.</param>
+        /// <param name="sizeInBytes">Size of the storage device.</param>
+        /// <param name="directoryCount"></param>
 		internal StorageDevice(PlayerIndex? player, int sizeInBytes, int directoryCount) 
 		{
 			this.player = player;
@@ -110,8 +117,9 @@ namespace Microsoft.Xna.Framework.Storage
 			this.directoryCount = directoryCount;
 		}
 		
-		// Summary:
-		//     Gets the amount of free space on the device.
+        /// <summary>
+        /// Returns the amount of free space.
+        /// </summary>
 		public long FreeSpace { 
 			get { 
 				// I do not know if the DriveInfo is is implemented on Mac or not
@@ -129,9 +137,10 @@ namespace Microsoft.Xna.Framework.Storage
 				}
 			} 
 		}
-		//
-		// Summary:
-		//     Gets whether the device is connected.
+
+        /// <summary>
+        /// Returns true if device is connected, false otherwise.
+        /// </summary>
 		public bool IsConnected { 
 			get { 
 				// I do not know if the DriveInfo is is implemented on Mac or not
@@ -148,9 +157,10 @@ namespace Microsoft.Xna.Framework.Storage
 				}
 			} 
 		}
-		//
-		// Summary:
-		//     Gets the total amount of space on the device.
+
+        /// <summary>
+        /// Returns the total size of device.
+        /// </summary>
 		public long TotalSpace { 
 			get { 
 				
@@ -186,13 +196,19 @@ namespace Microsoft.Xna.Framework.Storage
 				}				
 			}
 		}
-		// Summary:
-		//     Occurs when a device is removed or inserted.
-		//
-		// Parameters:
-		//   :
+
 		// TODO: Implement DeviceChanged when we having the graphical implementation
+
+        /// <summary>
+        /// Fired when a device is removed or inserted.
+        /// </summary>
 		public static event EventHandler<EventArgs> DeviceChanged;
+
+#if WINRT
+        // Dirty trick to avoid the need to get the delegate from the IAsyncResult (can't be done in WinRT)
+        static Delegate showDelegate;
+        static Delegate containerDelegate;
+#endif
 
 		// Summary:
 		//     Begins the process for opening a StorageContainer containing any files for
@@ -218,7 +234,10 @@ namespace Microsoft.Xna.Framework.Storage
 		{
 			try {
 				OpenContainerAsynchronous AsynchronousOpen = new OpenContainerAsynchronous (Open);
-				return AsynchronousOpen.BeginInvoke (displayName, callback, state);
+#if WINRT
+                containerDelegate = AsynchronousOpen;
+#endif
+                return AsynchronousOpen.BeginInvoke (displayName, callback, state);
 			} finally {
 			}
 		}
@@ -291,8 +310,13 @@ namespace Microsoft.Xna.Framework.Storage
 		public static IAsyncResult BeginShowSelector (int sizeInBytes, int directoryCount, AsyncCallback callback, object state)
 		{
 			var del = new ShowSelectorAsynchronousShowNoPlayer (Show);
+
+#if WINRT
+            showDelegate = del;
+#endif
 			return del.BeginInvoke(sizeInBytes, directoryCount, callback, state);
 		}
+
 		
 		//
 		// Summary:
@@ -322,8 +346,11 @@ namespace Microsoft.Xna.Framework.Storage
 		public static IAsyncResult BeginShowSelector (PlayerIndex player, int sizeInBytes, int directoryCount, AsyncCallback callback, object state)
 		{
 			var del = new ShowSelectorAsynchronousShow (Show);
-			return del.BeginInvoke(player, sizeInBytes, directoryCount, callback, state);
-		}
+#if WINRT
+            showDelegate = del;
+#endif
+            return del.BeginInvoke(player, sizeInBytes, directoryCount, callback, state);
+        }
 	
 		// Private method to handle the creation of the StorageDevice
 		private static StorageDevice Show (PlayerIndex player, int sizeInBytes, int directoryCount)
@@ -336,7 +363,7 @@ namespace Microsoft.Xna.Framework.Storage
 			return new StorageDevice (null, sizeInBytes, directoryCount);
 		}
 		
-		
+		/*
 		//
 		//
 		// Parameters:
@@ -345,8 +372,9 @@ namespace Microsoft.Xna.Framework.Storage
 		public void DeleteContainer (string titleName)
 		{
 			throw new NotImplementedException ();
-
 		}			
+        */
+
 		//
 		// Summary:
 		//     Ends the process for opening a StorageContainer.
@@ -358,16 +386,36 @@ namespace Microsoft.Xna.Framework.Storage
 		{
 			StorageContainer returnValue = null;
 			try {
+#if WINRT
+                // AsyncResult does not exist in WinRT
+                var asyncResult = containerDelegate as OpenContainerAsynchronous;
+				if (asyncResult != null)
+				{
+					// Wait for the WaitHandle to become signaled.
+					result.AsyncWaitHandle.WaitOne();
+
+					// Call EndInvoke to retrieve the results.
+    				returnValue = asyncResult.EndInvoke(result);
+				}
+                containerDelegate = null;
+#else
 				// Retrieve the delegate.
-                var asyncResult = result.AsyncState as OpenContainerAsynchronous;
+				AsyncResult asyncResult = result as AsyncResult;
+				if (asyncResult != null)
+				{
+					var asyncDelegate = asyncResult.AsyncDelegate as OpenContainerAsynchronous;
 
-				// Wait for the WaitHandle to become signaled.
-				result.AsyncWaitHandle.WaitOne ();
+					// Wait for the WaitHandle to become signaled.
+					result.AsyncWaitHandle.WaitOne();
 
-				// Call EndInvoke to retrieve the results.
-                if (asyncResult != null)
-                    returnValue = asyncResult.EndInvoke(result);
-			} finally {
+					// Call EndInvoke to retrieve the results.
+					if (asyncDelegate != null)
+						returnValue = asyncDelegate.EndInvoke(result);
+				}
+#endif
+            }
+            finally
+            {
 				// Close the wait handle.
 				result.AsyncWaitHandle.Dispose ();	 
 			}
@@ -385,24 +433,26 @@ namespace Microsoft.Xna.Framework.Storage
 		//     The IAsyncResult returned from BeginShowSelector.
 		public static StorageDevice EndShowSelector (IAsyncResult result) 
 		{
-#if WINRT
-            throw new NotImplementedException();
-#else
-
-
-			// Retrieve the delegate.
-			AsyncResult asyncResult = (AsyncResult)result;
 
 			if (!result.IsCompleted) {
 				// Wait for the WaitHandle to become signaled.
 				try {
 					result.AsyncWaitHandle.WaitOne ();
 				} finally {
+#if !WINRT
 					result.AsyncWaitHandle.Close ();
+#endif
 				}
 			}
+#if WINRT
+            var del = showDelegate;
+            showDelegate = null;
+#else
+			// Retrieve the delegate.
+			AsyncResult asyncResult = (AsyncResult)result;
 
-			var del = asyncResult.AsyncDelegate;
+            var del = asyncResult.AsyncDelegate;
+#endif
 
 			if (del is ShowSelectorAsynchronousShow)
 				return (del as ShowSelectorAsynchronousShow).EndInvoke (result);
@@ -410,7 +460,6 @@ namespace Microsoft.Xna.Framework.Storage
 				return (del as ShowSelectorAsynchronousShowNoPlayer).EndInvoke (result);
 			else
 				throw new ArgumentException ("result");
-#endif
 		}
 		
 		internal static string StorageRoot
@@ -418,6 +467,26 @@ namespace Microsoft.Xna.Framework.Storage
 			get {
 #if WINRT
                 return ApplicationData.Current.LocalFolder.Path; 
+#elif LINUX
+                string osConfigDir = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+                if (String.IsNullOrEmpty(osConfigDir))
+                {
+                    osConfigDir = Environment.GetEnvironmentVariable("HOME");
+                    if (String.IsNullOrEmpty(osConfigDir))
+                    {
+                        return "."; // Oh well.
+                    }
+                    osConfigDir += "/.local/share";
+                }
+                return osConfigDir;
+#elif MONOMAC
+                string osConfigDir = Environment.GetEnvironmentVariable("HOME");
+                if (String.IsNullOrEmpty(osConfigDir))
+                {
+                    return "."; // Oh well.
+                }
+                osConfigDir += "/Library/Application Support";
+                return osConfigDir;
 #else
                 return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 #endif

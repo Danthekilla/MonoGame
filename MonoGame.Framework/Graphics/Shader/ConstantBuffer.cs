@@ -5,13 +5,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if OPENGL
 #if MONOMAC
 using MonoMac.OpenGL;
 #elif WINDOWS || LINUX
 using OpenTK.Graphics.OpenGL;
 #elif GLES
 using OpenTK.Graphics.ES20;
-#elif PSS
+#endif
+#elif PSM
 using Sce.PlayStation.Core.Graphics;
 #endif
 
@@ -39,6 +41,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
         private int _program = -1;
         private int _location;
+
+        static ConstantBuffer _lastConstantBufferApplied = null;
 
         /// <summary>
         /// A hash value which can be used to compare constant buffers.
@@ -89,7 +93,8 @@ namespace Microsoft.Xna.Framework.Graphics
             desc.Usage = SharpDX.Direct3D11.ResourceUsage.Default;
             desc.BindFlags = SharpDX.Direct3D11.BindFlags.ConstantBuffer;
             desc.CpuAccessFlags = SharpDX.Direct3D11.CpuAccessFlags.None;
-            _cbuffer = new SharpDX.Direct3D11.Buffer(GraphicsDevice._d3dDevice, desc);
+            lock (GraphicsDevice._d3dContext)
+                _cbuffer = new SharpDX.Direct3D11.Buffer(GraphicsDevice._d3dDevice, desc);
 
 #elif OPENGL 
 
@@ -110,57 +115,62 @@ namespace Microsoft.Xna.Framework.Graphics
             // Force the uniform location to be looked up again
             _program = -1;
 #endif
+
+#if DIRECTX
+            SharpDX.Utilities.Dispose(ref _cbuffer);
+            _dirty = true;
+#endif
         }
 
         private void SetData(int offset, int rows, int columns, object data)
         {
-            // TODO: Should i pass the element size in?
+            // Shader registers are always 4 bytes and all the
+            // incoming data objects should be 4 bytes per element.
             const int elementSize = 4;
             const int rowSize = elementSize * 4;
 
-            // Take care of a single data type.
+            // Take care of a single element.
             if (rows == 1 && columns == 1)
             {
-                // TODO: Consider storing all data in arrays to avoid
-                // having to generate this temp array on every set.
-                byte[] bytes;
-
-                if (data is float)
-                    bytes = BitConverter.GetBytes((float)data);
+                // EffectParameter stores all values in arrays by default.             
+                if (data is Array)
+                    Buffer.BlockCopy(data as Array, 0, _buffer, offset, elementSize);
                 else
-                    bytes = BitConverter.GetBytes(((float[])data)[0]);
-
-                Buffer.BlockCopy(bytes, 0, _buffer, offset, elementSize);
+                {
+                    // TODO: When we eventually expose the internal Shader 
+                    // API then we will need to deal with non-array elements.
+                    throw new NotImplementedException();   
+                }
             }
 
             // Take care of the single copy case!
             else if (rows == 1 || (rows == 4 && columns == 4))
-                Buffer.BlockCopy(data as Array, 0, _buffer, offset, rows * columns * elementSize);
-
+                Buffer.BlockCopy(data as Array, 0, _buffer, offset, rows*columns*elementSize);
             else
             {
                 var source = data as Array;
 
-                var stride = (columns * elementSize);
+                var stride = (columns*elementSize);
                 for (var y = 0; y < rows; y++)
-                    Buffer.BlockCopy(source, stride * y, _buffer, offset + (rowSize * y), columns * elementSize);
+                    Buffer.BlockCopy(source, stride*y, _buffer, offset + (rowSize*y), columns*elementSize);
             }
         }
 
-        private void SetParameter(int offset, EffectParameter param)
+        private int SetParameter(int offset, EffectParameter param)
         {
             const int elementSize = 4;
             const int rowSize = elementSize * 4;
+
+            int rowsUsed = 0;
 
             if (param.Elements.Count > 0)
             {
                 foreach (var subparam in param.Elements)
                 {
-                    SetParameter(offset, subparam);
+                    int rowsUsedSubParam = SetParameter(offset, subparam);
 
-                    //TODO: Sometimes directx decides to transpose matricies
-                    //to fit in fewer registers.
-                    offset += subparam.RowCount * rowSize;
+                    offset += rowsUsedSubParam * rowSize;
+                    rowsUsed += rowsUsedSubParam;
                 }
             }
             else if (param.Data != null)
@@ -168,13 +178,27 @@ namespace Microsoft.Xna.Framework.Graphics
                 switch (param.ParameterType)
                 {
                     case EffectParameterType.Single:
-                        SetData(offset, param.RowCount, param.ColumnCount, param.Data);
+					case EffectParameterType.Int32:
+                    case EffectParameterType.Bool:
+                        // HLSL assumes matrices are column-major, whereas in-memory we use row-major.
+                        // TODO: HLSL can be told to use row-major. We should handle that too.
+                        if (param.ParameterClass == EffectParameterClass.Matrix)
+                        {
+                            rowsUsed = param.ColumnCount;
+                            SetData(offset, param.ColumnCount, param.RowCount, param.Data);
+                        }
+                        else
+                        {
+                            rowsUsed = param.RowCount;
+                            SetData(offset, param.RowCount, param.ColumnCount, param.Data);
+                        }
                         break;
-
                     default:
-                        throw new NotImplementedException("Not supported!");
+                        throw new NotSupportedException("Not supported!");
                 }
             }
+
+            return rowsUsed;
         }
 
         public void Update(EffectParameterCollection parameters)
@@ -214,6 +238,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
         internal void Apply(GraphicsDevice device, ShaderStage stage, int slot)
         {
+            if (_cbuffer == null)
+                Initialize();
+
             // NOTE: We make the assumption here that the caller has
             // locked the d3dContext for us to use.
             var d3dContext = GraphicsDevice._d3dContext;
@@ -232,7 +259,7 @@ namespace Microsoft.Xna.Framework.Graphics
                 d3dContext.PixelShader.SetConstantBuffer(slot, _cbuffer);
         }
 
-#elif OPENGL || PSS
+#elif OPENGL || PSM
 
         public unsafe void Apply(GraphicsDevice device, int program)
         {
@@ -254,6 +281,10 @@ namespace Microsoft.Xna.Framework.Graphics
                 _dirty = true;
             }
 
+            // If the shader program is the same, the effect may still be different and have different values in the buffer
+            if (!Object.ReferenceEquals(this, _lastConstantBufferApplied))
+                _dirty = true;
+
             // If the buffer content hasn't changed then we're
             // done... use the previously set uniform state.
             if (!_dirty)
@@ -271,9 +302,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
             // Clear the dirty flag.
             _dirty = false;
+
+            _lastConstantBufferApplied = this;
 #endif
             
-#if PSS
+#if PSM
 #warning Unimplemented
 #endif
         }

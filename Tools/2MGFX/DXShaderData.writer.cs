@@ -9,14 +9,29 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             writer.Write(IsVertexShader);
 
-            writer.Write((ushort)ShaderCode.Length);
+            writer.Write(ShaderCode.Length);
             writer.Write(ShaderCode);
 
             writer.Write((byte)_samplers.Length);
             foreach (var sampler in _samplers)
             {
                 writer.Write((byte)sampler.type);
-                writer.Write((byte)sampler.index);
+                writer.Write((byte)sampler.textureSlot);
+                writer.Write((byte)sampler.samplerSlot);
+
+				if (sampler.state != null)
+				{
+					writer.Write(true);
+					writer.Write((byte)sampler.state.AddressU);
+					writer.Write((byte)sampler.state.AddressV);
+					writer.Write((byte)sampler.state.AddressW);
+					writer.Write((byte)sampler.state.Filter);
+					writer.Write(sampler.state.MaxAnisotropy);
+					writer.Write(sampler.state.MaxMipLevel);
+					writer.Write(sampler.state.MipMapLevelOfDetailBias);
+				}
+				else
+					writer.Write(false);
 
                 if (!options.DX11Profile)
                     writer.Write(sampler.samplerName);

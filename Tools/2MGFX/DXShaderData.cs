@@ -1,10 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-using System.IO;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
-
 namespace Microsoft.Xna.Framework.Graphics
 {
 	internal partial class DXShaderData
@@ -14,10 +7,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		public struct Sampler
 		{
 			public MojoShader.MOJOSHADER_samplerType type;
-			public int index;
+			public int textureSlot;
+            public int samplerSlot;
 			public string samplerName;
 			public string parameterName;
 			public int parameter;
+			public SamplerState state;
 		}
 
 		public struct Attribute

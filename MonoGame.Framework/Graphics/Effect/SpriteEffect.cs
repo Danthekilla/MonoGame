@@ -10,23 +10,7 @@
 #region Using Statements
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-
-
-
-
 using System;
-
-#if ANDROID || IPHONE
-using OpenTK.Graphics.ES20;
-using ActiveUniformType = OpenTK.Graphics.ES20.All;
-#elif MONOMAC
-using MonoMac.OpenGL;
-#elif PSS
-using Sce.PlayStation.Core.Graphics;
-#elif !WINRT
-using OpenTK.Graphics.OpenGL;
-#endif
-
 #endregion
 
 namespace Microsoft.Xna.Framework.Graphics
@@ -45,7 +29,7 @@ namespace Microsoft.Xna.Framework.Graphics
         static internal readonly byte[] Bytecode = LoadEffectResource(
 #if DIRECTX
             "Microsoft.Xna.Framework.Graphics.Effect.Resources.SpriteEffect.dx11.mgfxo"
-#elif PSS
+#elif PSM
             "MonoGame.Framework.PSMobile.PSSuite.Graphics.Resources.SpriteEffect.cgx" //FIXME: This shader is totally incomplete
 #else
             "Microsoft.Xna.Framework.Graphics.Effect.Resources.SpriteEffect.ogl.mgfxo"

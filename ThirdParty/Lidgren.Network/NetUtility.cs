@@ -16,7 +16,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-#if !ANDROID && !IOS && !PSS 
+#if !ANDROID && !IOS && !PSM 
 #define IS_FULL_NET_AVAILABLE
 #endif
 
@@ -263,7 +263,9 @@ namespace Lidgren.Network
 			{
 				if (unicastAddress != null && unicastAddress.Address != null && unicastAddress.Address.AddressFamily == AddressFamily.InterNetwork)
 				{
+#if !MONOMAC
 					mask = unicastAddress.IPv4Mask;
+#endif
 					return unicastAddress.Address;
 				}
 			}

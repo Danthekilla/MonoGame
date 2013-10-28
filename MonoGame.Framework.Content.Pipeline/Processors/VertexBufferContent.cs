@@ -1,46 +1,11 @@
-﻿#region License
-/*
- Microsoft Public License (Ms-PL)
- MonoGame - Copyright © 2012 The MonoGame Team
- 
- All rights reserved.
- 
- This license governs use of the accompanying software. If you use the software, you accept this license. If you do not
- accept the license, do not use the software.
- 
- 1. Definitions
- The terms "reproduce," "reproduction," "derivative works," and "distribution" have the same meaning here as under 
- U.S. copyright law.
- 
- A "contribution" is the original software, or any additions or changes to the software.
- A "contributor" is any person that distributes its contribution under this license.
- "Licensed patents" are a contributor's patent claims that read directly on its contribution.
- 
- 2. Grant of Rights
- (A) Copyright Grant- Subject to the terms of this license, including the license conditions and limitations in section 3, 
- each contributor grants you a non-exclusive, worldwide, royalty-free copyright license to reproduce its contribution, prepare derivative works of its contribution, and distribute its contribution or any derivative works that you create.
- (B) Patent Grant- Subject to the terms of this license, including the license conditions and limitations in section 3, 
- each contributor grants you a non-exclusive, worldwide, royalty-free license under its licensed patents to make, have made, use, sell, offer for sale, import, and/or otherwise dispose of its contribution in the software or derivative works of the contribution in the software.
- 
- 3. Conditions and Limitations
- (A) No Trademark License- This license does not grant you rights to use any contributors' name, logo, or trademarks.
- (B) If you bring a patent claim against any contributor over patents that you claim are infringed by the software, 
- your patent license from such contributor to the software ends automatically.
- (C) If you distribute any portion of the software, you must retain all copyright, patent, trademark, and attribution 
- notices that are present in the software.
- (D) If you distribute any portion of the software in source code form, you may do so only under this license by including 
- a complete copy of this license with your distribution. If you distribute any portion of the software in compiled or object 
- code form, you may only do so under a license that complies with this license.
- (E) The software is licensed "as-is." You bear the risk of using it. The contributors give no express warranties, guarantees
- or conditions. You may have additional consumer rights under your local laws which this license cannot change. To the extent
- permitted under your local laws, the contributors exclude the implied warranties of merchantability, fitness for a particular
- purpose and non-infringement.
- */
-#endregion License
+﻿// MonoGame - Copyright (C) The MonoGame Team
+// This file is subject to the terms and conditions defined in
+// file 'LICENSE.txt', which is part of this source code package.
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
 {
@@ -50,27 +15,29 @@ namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
     /// <remarks>This type directly corresponds to the runtime VertexBuffer class, and when a VertexBufferContent object is passed to the content compiler, the vertex data deserializes directly into a VertexBuffer at runtime. VertexBufferContent objects are not directly created by importers. The preferred method is to store vertex data in the more flexible VertexContent class.</remarks>
     public class VertexBufferContent : ContentItem
     {
-        byte[] vertexData;
-        VertexDeclarationContent vertexDeclarationContent;
+        MemoryStream stream;
+        BinaryWriter writer;
 
         /// <summary>
         /// Gets the array containing the raw bytes of the packed vertex data. Use this method to get and set the contents of the vertex buffer.
         /// </summary>
         /// <value>Raw data of the packed vertex data.</value>
-        public byte[] VertexData { get { return vertexData; } }
+        public byte[] VertexData { get { return stream.ToArray(); } }
 
         /// <summary>
-        /// Gets the associated VertexDeclarationContent object.
+        /// Gets and sets the associated VertexDeclarationContent object.
         /// </summary>
         /// <value>The associated VertexDeclarationContent object.</value>
-        public VertexDeclarationContent VertexDeclaration { get { return vertexDeclarationContent; } set { vertexDeclarationContent = value; } }
+        public VertexDeclarationContent VertexDeclaration { get; set; }
 
         /// <summary>
         /// Initializes a new instance of VertexBufferContent.
         /// </summary>
         public VertexBufferContent()
         {
-
+            stream = new MemoryStream();
+            writer = new BinaryWriter(stream);
+            VertexDeclaration = new VertexDeclarationContent();
         }
 
         /// <summary>
@@ -80,7 +47,9 @@ namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
         public VertexBufferContent(int size)
             : base()
         {
-
+            stream = new MemoryStream(size);
+            writer = new BinaryWriter(stream);
+            VertexDeclaration = new VertexDeclarationContent();
         }
 
         /// <summary>
@@ -92,6 +61,15 @@ namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
         /// <exception cref="NotSupportedException">type is not a valid value type</exception>
         public static int SizeOf(Type type)
         {
+            if (type == typeof(Vector2))
+                return 8;
+
+            if (type == typeof(Vector3))
+                return 12;
+
+            if (type == typeof(Vector4))
+                return 16;
+
             throw new NotSupportedException();
         }
 
@@ -105,7 +83,7 @@ namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
         /// <exception cref="NotSupportedException">The specified data type cannot be packed into a vertex buffer.</exception>
         public void Write<T>(int offset, int stride, IEnumerable<T> data)
         {
-            throw new NotSupportedException();
+            Write(offset, stride, typeof(T), data);
         }
 
         /// <summary>
@@ -118,7 +96,53 @@ namespace Microsoft.Xna.Framework.Content.Pipeline.Processors
         /// <exception cref="NotSupportedException">The specified data type cannot be packed into a vertex buffer.</exception>
         public void Write(int offset, int stride, Type dataType, IEnumerable data)
         {
-            throw new NotSupportedException();
+            if (dataType == typeof(Vector2))
+                Write(offset, stride, data as IEnumerable<Vector2>);
+            else if (dataType == typeof(Vector3))
+                Write(offset, stride, data as IEnumerable<Vector3>);
+            else if (dataType == typeof(Vector4))
+                Write(offset, stride, data as IEnumerable<Vector4>);
+            else
+                throw new NotSupportedException();
+        }
+
+        private void Write(int offset, int stride, IEnumerable<Vector2> data)
+        {
+            stream.Seek(offset, SeekOrigin.Begin);
+            foreach (var item in data)
+            {
+                var next = stream.Position + stride;
+                writer.Write(item.X);
+                writer.Write(item.Y);
+                stream.Seek(next, SeekOrigin.Begin);
+            }
+        }
+
+        private void Write(int offset, int stride, IEnumerable<Vector3> data)
+        {
+            stream.Seek(offset, SeekOrigin.Begin);
+            foreach (var item in data)
+            {
+                var next = stream.Position + stride;
+                writer.Write(item.X);
+                writer.Write(item.Y);
+                writer.Write(item.Z);
+                stream.Seek(next, SeekOrigin.Begin);
+            }
+        }
+
+        private void Write(int offset, int stride, IEnumerable<Vector4> data)
+        {
+            stream.Seek(offset, SeekOrigin.Begin);
+            foreach (var item in data)
+            {
+                var next = stream.Position + stride;
+                writer.Write(item.X);
+                writer.Write(item.Y);
+                writer.Write(item.Z);
+                writer.Write(item.W);
+                stream.Seek(next, SeekOrigin.Begin);
+            }
         }
     }
 }

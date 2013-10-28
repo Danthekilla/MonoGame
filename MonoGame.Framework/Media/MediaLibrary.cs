@@ -42,7 +42,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-#if IPHONE
+#if IOS
 using MonoTouch.MediaPlayer;
 #endif
 
@@ -64,27 +64,29 @@ namespace Microsoft.Xna.Framework.Media
 		{
 		}
 		
+        /*
 		public void SavePicture (string name, byte[] imageBuffer)
 		{
-#if IPHONE || ANDROID
+#if IOS || ANDROID
 			throw new NotImplementedException();
 #else
 			//only is relivant on mobile devices...
 			throw new NotSupportedException ();
 #endif
 		}
-		
+
 		public void SavePicture (string name, Stream source)
 		{
-#if IPHONE || ANDROID
+#if IOS || ANDROID
 			throw new NotImplementedException();
 #else
 			//only is relivant on mobile devices...
 			throw new NotSupportedException ();
 #endif
 		}
-		
-#if IPHONE
+		*/
+
+#if IOS
 
 		public PlaylistCollection Playlists
 		{
@@ -113,8 +115,8 @@ namespace Microsoft.Xna.Framework.Media
 			}
 		}
 #endif
-		
-		public SongCollection Songs
+
+        public SongCollection Songs
 		{
 			get
 			{

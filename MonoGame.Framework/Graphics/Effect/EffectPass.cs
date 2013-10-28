@@ -4,42 +4,29 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 
-#if MONOMAC
-using MonoMac.OpenGL;
-#elif WINDOWS || LINUX
-using OpenTK.Graphics.OpenGL;
-#elif PSS
+#if PSM
 using Sce.PlayStation.Core.Graphics;
-#elif WINRT
-
-#else
-using OpenTK.Graphics.ES20;
-
-#if IPHONE || ANDROID
-using ActiveUniformType = OpenTK.Graphics.ES20.All;
-using ShaderType = OpenTK.Graphics.ES20.All;
-using ProgramParameter = OpenTK.Graphics.ES20.All;
 #endif
-#endif
+
 
 namespace Microsoft.Xna.Framework.Graphics
 {
     public class EffectPass
     {
-        private Effect _effect;
+        private readonly Effect _effect;
 
-		private Shader _pixelShader;
-        private Shader _vertexShader;
+		private readonly Shader _pixelShader;
+        private readonly Shader _vertexShader;
 
-        private BlendState _blendState;
-        private DepthStencilState _depthStencilState;
-        private RasterizerState _rasterizerState;
+        private readonly BlendState _blendState;
+        private readonly DepthStencilState _depthStencilState;
+        private readonly RasterizerState _rasterizerState;
 
 		public string Name { get; private set; }
 
         public EffectAnnotationCollection Annotations { get; private set; }
 
-#if PSS
+#if PSM
         internal ShaderProgram _shaderProgram;
 #endif
 
@@ -53,8 +40,6 @@ namespace Microsoft.Xna.Framework.Graphics
                                 EffectAnnotationCollection annotations )
         {
             Debug.Assert(effect != null, "Got a null effect!");
-            Debug.Assert(vertexShader != null, "Got a null vertex shader!");
-            Debug.Assert(pixelShader != null, "Got a null pixel shader!");
             Debug.Assert(annotations != null, "Got a null annotation collection!");
 
             _effect = effect;
@@ -69,9 +54,6 @@ namespace Microsoft.Xna.Framework.Graphics
             _rasterizerState = rasterizerState;
 
             Annotations = annotations;
-
-            Initialize();
-
         }
         
         internal EffectPass(Effect effect, EffectPass cloneSource)
@@ -89,15 +71,11 @@ namespace Microsoft.Xna.Framework.Graphics
             Annotations = cloneSource.Annotations;
             _vertexShader = cloneSource._vertexShader;
             _pixelShader = cloneSource._pixelShader;
-#if PSS
+#if PSM
             _shaderProgram = cloneSource._shaderProgram;
 #endif
         }
 
-        public void Initialize()
-        {
-        }
-        
         public void Apply()
         {
             // Set/get the correct shader handle/cleanups.
@@ -141,8 +119,12 @@ namespace Microsoft.Xna.Framework.Graphics
 										
 					// If there is no texture assigned then skip it
 					// and leave whatever set directly on the device.
-                    if (texture != null)
-                        device.Textures[sampler.index] = texture;
+					if (texture != null)
+						device.Textures[sampler.textureSlot] = texture;
+
+                    // If there is a sampler state set it.
+                    if (sampler.state != null)
+                        device.SamplerStates[sampler.samplerSlot] = sampler.state;
                 }
                 
                 // Update the constant buffers.
@@ -164,7 +146,7 @@ namespace Microsoft.Xna.Framework.Graphics
             if (_depthStencilState != null)
                 device.DepthStencilState = _depthStencilState;
             
-#if PSS
+#if PSM
             _effect.GraphicsDevice._graphics.SetShaderProgram(_shaderProgram);
 
             #warning We are only setting one hardcoded parameter here. Need to do this properly by iterating _effect.Parameters (Happens in Shader)

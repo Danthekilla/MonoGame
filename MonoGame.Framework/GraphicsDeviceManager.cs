@@ -48,7 +48,7 @@ using MonoMac.OpenGL;
 using OpenTK.Graphics.ES20;
 #elif OPENGL
 using OpenTK.Graphics.OpenGL;
-#elif WINRT
+#elif WINDOWS_STOREAPP
 using Windows.UI.Xaml.Controls;
 #endif
 
@@ -69,9 +69,10 @@ namespace Microsoft.Xna.Framework
         private bool _preferMultiSampling;
         private DisplayOrientation _supportedOrientations;
         private bool _synchronizedWithVerticalRetrace = true;
+        private bool _drawBegun;
         bool disposed;
 
-#if !(WINDOWS || LINUX || WINRT)
+#if !WINRT
         private bool _wantFullScreen = false;
 #endif
         public static readonly int DefaultBackBufferHeight = 480;
@@ -93,24 +94,19 @@ namespace Microsoft.Xna.Framework
             // Preferred buffer width/height is used to determine default supported orientations,
             // so set the default values to match Xna behaviour of landscape only by default.
             // Note also that it's using the device window dimensions.
-            _preferredBackBufferWidth = Math.Max(game.Window.ClientBounds.Height, game.Window.ClientBounds.Width);
-            _preferredBackBufferHeight = Math.Min(game.Window.ClientBounds.Height, game.Window.ClientBounds.Width);
+            _preferredBackBufferWidth = Math.Max(_game.Window.ClientBounds.Height, _game.Window.ClientBounds.Width);
+            _preferredBackBufferHeight = Math.Min(_game.Window.ClientBounds.Height, _game.Window.ClientBounds.Width);
 #endif
 
             _preferredBackBufferFormat = SurfaceFormat.Color;
             _preferredDepthStencilFormat = DepthFormat.Depth24;
             _synchronizedWithVerticalRetrace = true;
 
-            if (game.Services.GetService(typeof(IGraphicsDeviceManager)) != null)
+            if (_game.Services.GetService(typeof(IGraphicsDeviceManager)) != null)
                 throw new ArgumentException("Graphics Device Manager Already Present");
 
-            game.Services.AddService(typeof(IGraphicsDeviceManager), this);
-            game.Services.AddService(typeof(IGraphicsDeviceService), this);
-
-#if (WINDOWS && !WINRT) || LINUX
-            // TODO: This should not occur here... it occurs during Game.Initialize().
-            CreateDevice();
-#endif
+            _game.Services.AddService(typeof(IGraphicsDeviceManager), this);
+            _game.Services.AddService(typeof(IGraphicsDeviceService), this);
         }
 
         ~GraphicsDeviceManager()
@@ -120,8 +116,6 @@ namespace Microsoft.Xna.Framework
 
         public void CreateDevice()
         {
-            _graphicsDevice = new GraphicsDevice();
-
             Initialize();
 
             OnDeviceCreated(EventArgs.Empty);
@@ -129,12 +123,20 @@ namespace Microsoft.Xna.Framework
 
         public bool BeginDraw()
         {
-            throw new NotImplementedException();
+            if (_graphicsDevice == null)
+                return false;
+
+            _drawBegun = true;
+            return true;
         }
 
         public void EndDraw()
         {
-            throw new NotImplementedException();
+            if (_graphicsDevice != null && _drawBegun)
+            {
+                _drawBegun = false;
+                _graphicsDevice.Present();
+            }
         }
 
         #region IGraphicsDeviceService Members
@@ -213,7 +215,12 @@ namespace Microsoft.Xna.Framework
             // Calling ApplyChanges() before CreateDevice() should have no effect
             if (_graphicsDevice == null)
                 return;
-#if WINRT
+
+#if WINDOWS_PHONE
+            // Display orientation is always portrait on WP8
+            _graphicsDevice.PresentationParameters.DisplayOrientation = DisplayOrientation.Portrait;
+#elif WINDOWS_STOREAPP
+
             // TODO:  Does this need to occur here?
             _game.Window.SetSupportedOrientations(_supportedOrientations);
 
@@ -244,6 +251,28 @@ namespace Microsoft.Xna.Framework
             // Update the back buffer.
             _graphicsDevice.CreateSizeDependentResources();
             _graphicsDevice.ApplyRenderTargets(null);
+
+#elif WINDOWS && DIRECTX
+
+            _graphicsDevice.PresentationParameters.BackBufferFormat = _preferredBackBufferFormat;
+            _graphicsDevice.PresentationParameters.BackBufferWidth = _preferredBackBufferWidth;
+            _graphicsDevice.PresentationParameters.BackBufferHeight = _preferredBackBufferHeight;
+            _graphicsDevice.PresentationParameters.DepthStencilFormat = _preferredDepthStencilFormat;
+            _graphicsDevice.PresentationParameters.PresentationInterval = _synchronizedWithVerticalRetrace ? PresentInterval.Default : PresentInterval.Immediate;
+            _graphicsDevice.PresentationParameters.IsFullScreen = false;
+
+            // TODO: We probably should be resetting the whole 
+            // device if this changes as we are targeting a different
+            // hardware feature level.
+            _graphicsDevice.GraphicsProfile = GraphicsProfile;
+
+            _graphicsDevice.PresentationParameters.DeviceWindowHandle = _game.Window.Handle;
+
+            // Update the back buffer.
+            _graphicsDevice.CreateSizeDependentResources();
+            _graphicsDevice.ApplyRenderTargets(null);
+
+            _game.ResizeWindow(false);
 
 #elif WINDOWS || LINUX
             _game.ResizeWindow(false);
@@ -285,55 +314,69 @@ namespace Microsoft.Xna.Framework
 
         private void Initialize()
         {
+            var presentationParameters = new PresentationParameters();
+            presentationParameters.DepthStencilFormat = DepthFormat.Depth24;
+
 #if WINDOWS || WINRT
             _game.Window.SetSupportedOrientations(_supportedOrientations);
 
-            _graphicsDevice.PresentationParameters.BackBufferFormat = _preferredBackBufferFormat;
-            _graphicsDevice.PresentationParameters.BackBufferWidth = _preferredBackBufferWidth;
-            _graphicsDevice.PresentationParameters.BackBufferHeight = _preferredBackBufferHeight;
-            _graphicsDevice.PresentationParameters.DepthStencilFormat = _preferredDepthStencilFormat;
+            presentationParameters.BackBufferFormat = _preferredBackBufferFormat;
+            presentationParameters.BackBufferWidth = _preferredBackBufferWidth;
+            presentationParameters.BackBufferHeight = _preferredBackBufferHeight;
+            presentationParameters.DepthStencilFormat = _preferredDepthStencilFormat;
 
-            _graphicsDevice.PresentationParameters.IsFullScreen = false;
-            _graphicsDevice.GraphicsProfile = GraphicsProfile;
+            presentationParameters.IsFullScreen = false;
+#if WINDOWS_PHONE
 
-#if WINRT
+#elif WINRT
 			// The graphics device can use a XAML panel or a window
 			// to created the default swapchain target.
             if (SwapChainPanel != null)
             {
-                _graphicsDevice.PresentationParameters.DeviceWindowHandle = IntPtr.Zero;
-                _graphicsDevice.PresentationParameters.SwapChainPanel = SwapChainPanel;
+                presentationParameters.DeviceWindowHandle = IntPtr.Zero;
+                presentationParameters.SwapChainPanel = SwapChainPanel;
             }
             else
             {
-                _graphicsDevice.PresentationParameters.DeviceWindowHandle = _game.Window.Handle;
-                _graphicsDevice.PresentationParameters.SwapChainPanel = null;
+                presentationParameters.DeviceWindowHandle = _game.Window.Handle;
+                presentationParameters.SwapChainPanel = null;
             }
 #else
-            _graphicsDevice.PresentationParameters.DeviceWindowHandle = _game.Window.Handle;
+            presentationParameters.DeviceWindowHandle = _game.Window.Handle;
 #endif
 
-            _graphicsDevice.Initialize();
 #else
 
 #if MONOMAC
-            _graphicsDevice.PresentationParameters.IsFullScreen = _wantFullScreen;
+            presentationParameters.IsFullScreen = _wantFullScreen;
 #elif LINUX
-            _graphicsDevice.PresentationParameters.IsFullScreen = false;
+            presentationParameters.IsFullScreen = false;
 #else
             // Set "full screen"  as default
-            _graphicsDevice.PresentationParameters.IsFullScreen = true;
+            presentationParameters.IsFullScreen = true;
 #endif // MONOMAC
 
-            // TODO: Implement multisampling (aka anti-alising) for all platforms!
+#endif // WINDOWS || WINRT
 
-            _graphicsDevice.Initialize();
+            // TODO: Implement multisampling (aka anti-alising) for all platforms!
+            if (PreparingDeviceSettings != null)
+            {
+                GraphicsDeviceInformation gdi = new GraphicsDeviceInformation();
+                gdi.GraphicsProfile = GraphicsProfile; // Microsoft defaults this to Reach.
+                gdi.Adapter = GraphicsAdapter.DefaultAdapter;
+                gdi.PresentationParameters = presentationParameters;
+                PreparingDeviceSettingsEventArgs pe = new PreparingDeviceSettingsEventArgs(gdi);
+                PreparingDeviceSettings(this, pe);
+                presentationParameters = pe.GraphicsDeviceInformation.PresentationParameters;
+                GraphicsProfile = pe.GraphicsDeviceInformation.GraphicsProfile;
+            }
+
+            // Needs to be before ApplyChanges()
+            _graphicsDevice = new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile, presentationParameters);
 
 #if !MONOMAC
             ApplyChanges();
 #endif
-
-#endif // WINDOWS || WINRT
 
             // Set the new display size on the touch panel.
             //
@@ -343,6 +386,7 @@ namespace Microsoft.Xna.Framework
             //
             TouchPanel.DisplayWidth = _graphicsDevice.PresentationParameters.BackBufferWidth;
             TouchPanel.DisplayHeight = _graphicsDevice.PresentationParameters.BackBufferHeight;
+            TouchPanel.DisplayOrientation = _graphicsDevice.PresentationParameters.DisplayOrientation;
         }
 
         public void ToggleFullScreen()
@@ -350,9 +394,10 @@ namespace Microsoft.Xna.Framework
             IsFullScreen = !IsFullScreen;
         }
 
-#if WINRT
+#if WINDOWS_STOREAPP
+        [CLSCompliant(false)]
         public SwapChainBackgroundPanel SwapChainPanel { get; set; }
-#endif 
+#endif
 
         public GraphicsProfile GraphicsProfile { get; set; }
 
@@ -368,9 +413,7 @@ namespace Microsoft.Xna.Framework
         {
             get
             {
-#if WINDOWS || LINUX
-                return _graphicsDevice.PresentationParameters.IsFullScreen;
-#elif WINRT
+#if WINRT
                 return true;
 #else
                 if (_graphicsDevice != null)
@@ -381,9 +424,7 @@ namespace Microsoft.Xna.Framework
             }
             set
             {
-#if WINDOWS || LINUX
-                _graphicsDevice.PresentationParameters.IsFullScreen = value;
-#elif WINRT
+#if WINRT
                 // Just ignore this as it is not relevant on Windows 8
 #else
                 _wantFullScreen = value;
@@ -402,7 +443,10 @@ namespace Microsoft.Xna.Framework
         internal void ForceSetFullScreen()
         {
             if (IsFullScreen)
+			{
+				Game.Activity.Window.ClearFlags(Android.Views.WindowManagerFlags.ForceNotFullscreen);
                 Game.Activity.Window.SetFlags(WindowManagerFlags.Fullscreen, WindowManagerFlags.Fullscreen);
+			}
             else
                 Game.Activity.Window.SetFlags(WindowManagerFlags.ForceNotFullscreen, WindowManagerFlags.ForceNotFullscreen);
         }
@@ -498,10 +542,8 @@ namespace Microsoft.Xna.Framework
             set
             {
                 _supportedOrientations = value;
-
-#if !MONOMAC && !LINUX
-                _game.Window.SetSupportedOrientations(_supportedOrientations);
-#endif
+                if (_game.Window != null)
+                    _game.Window.SetSupportedOrientations(_supportedOrientations);
             }
         }
 
