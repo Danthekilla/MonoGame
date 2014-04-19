@@ -1592,7 +1592,8 @@ namespace Microsoft.Xna.Framework.Graphics
             }
         }
 
-        private void PlatformDrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int startIndex, int primitiveCount, int instanceCount)
+        private void PlatformDrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int startIndex,
+            int primitiveCount, int instanceCount)
         {
             lock (_d3dContext)
             {
@@ -1602,6 +1603,11 @@ namespace Microsoft.Xna.Framework.Graphics
                 int indexCount = GetElementCountArray(primitiveType, primitiveCount);
                 _d3dContext.DrawIndexedInstanced(indexCount, instanceCount, startIndex, baseVertex, 0);
             }
+        }
+
+        private void PlatformGetBackBufferData<T>(T[] data) where T : struct
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>
