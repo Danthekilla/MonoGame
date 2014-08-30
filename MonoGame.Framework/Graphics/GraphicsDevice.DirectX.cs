@@ -272,15 +272,12 @@ namespace Microsoft.Xna.Framework.Graphics
             // Pass the preferred feature levels based on the
             // target profile that may have been set by the user.
             var featureLevels = new List<FeatureLevel>();
-            if (GraphicsProfile == GraphicsProfile.HiDef)
-            {
-                featureLevels.Add(FeatureLevel.Level_11_1);
-                featureLevels.Add(FeatureLevel.Level_11_0);
-                featureLevels.Add(FeatureLevel.Level_10_1);
-                featureLevels.Add(FeatureLevel.Level_10_0);
-            }
-            featureLevels.Add(FeatureLevel.Level_9_3);
-            featureLevels.Add(FeatureLevel.Level_9_2);
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_1) featureLevels.Add(FeatureLevel.Level_11_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_0) featureLevels.Add(FeatureLevel.Level_11_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_1) featureLevels.Add(FeatureLevel.Level_10_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_0) featureLevels.Add(FeatureLevel.Level_10_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_3) featureLevels.Add(FeatureLevel.Level_9_3);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_2) featureLevels.Add(FeatureLevel.Level_9_2);
             featureLevels.Add(FeatureLevel.Level_9_1);
 
             var driverType = GraphicsAdapter.UseReferenceDevice ? DriverType.Reference : DriverType.Hardware;
@@ -596,29 +593,14 @@ namespace Microsoft.Xna.Framework.Graphics
             // Pass the preferred feature levels based on the
             // target profile that may have been set by the user.
             var featureLevels = new List<FeatureLevel>();
-            if (GraphicsProfile == GraphicsProfile.HiDef)
-            {
-                featureLevels.Add(FeatureLevel.Level_11_0);
-                featureLevels.Add(FeatureLevel.Level_10_1);
-                featureLevels.Add(FeatureLevel.Level_10_0);
-            }
-
-            // We can not give featureLevels for granted in GraphicsProfile.Reach
-            FeatureLevel supportedFeatureLevel = 0;
-            try
-            {
-                supportedFeatureLevel = SharpDX.Direct3D11.Device.GetSupportedFeatureLevel();
-            }
-            catch (SharpDX.SharpDXException)
-            {
-                // if GetSupportedFeatureLevel() fails, do not crash the initialization. Program can run without this.
-            }
-
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_3)
-                featureLevels.Add(FeatureLevel.Level_9_3);
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_2)
-                featureLevels.Add(FeatureLevel.Level_9_2);
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_1)
+            #if !WINDOWS
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_1) featureLevels.Add(FeatureLevel.Level_11_1);
+            #endif
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_0) featureLevels.Add(FeatureLevel.Level_11_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_1) featureLevels.Add(FeatureLevel.Level_10_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_0) featureLevels.Add(FeatureLevel.Level_10_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_3) featureLevels.Add(FeatureLevel.Level_9_3);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_2) featureLevels.Add(FeatureLevel.Level_9_2);
                 featureLevels.Add(FeatureLevel.Level_9_1);
 
             var driverType = DriverType.Hardware;   //Default value
@@ -1485,10 +1467,16 @@ namespace Microsoft.Xna.Framework.Graphics
 
             GraphicsProfile graphicsProfile;
 
-            if (featureLevel >= FeatureLevel.Level_10_0 || GraphicsAdapter.UseReferenceDevice)
-                graphicsProfile = GraphicsProfile.HiDef;
+            #if !WINDOWS
+            if (featureLevel >= FeatureLevel.Level_11_1 || GraphicsAdapter.UseReferenceDevice)   graphicsProfile = GraphicsProfile.Profile_11_1;
             else
-                graphicsProfile = GraphicsProfile.Reach;
+            #endif
+                 if (featureLevel >= FeatureLevel.Level_11_0 || GraphicsAdapter.UseReferenceDevice)   graphicsProfile = GraphicsProfile.Profile_11_0;
+            else if (featureLevel >= FeatureLevel.Level_10_1)   graphicsProfile = GraphicsProfile.Profile_10_1;
+            else if (featureLevel >= FeatureLevel.Level_10_0)   graphicsProfile = GraphicsProfile.Profile_10_0; //GraphicsProfile.HiDef;
+            else if (featureLevel >= FeatureLevel.Level_9_3)    graphicsProfile = GraphicsProfile.Profile_09_3;
+            else if (featureLevel >= FeatureLevel.Level_9_2)    graphicsProfile = GraphicsProfile.Profile_09_2;
+            else                                                graphicsProfile = GraphicsProfile.Reach; //Profile_09_1
 
             return graphicsProfile;
         }
