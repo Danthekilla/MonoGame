@@ -16,6 +16,7 @@ using Windows.UI.ViewManagement;
 using Windows.UI.Xaml.Media;
 #if WINDOWS_PHONE81
 using Windows.UI.Xaml;
+using System.Threading.Tasks;
 #endif
 
 namespace Microsoft.Xna.Framework
@@ -114,10 +115,18 @@ namespace Microsoft.Xna.Framework
 
         public override void StartRunLoop()
         {
-            CompositionTarget.Rendering += (o, a) =>
+            Task inputTask = Task.Run(() =>
             {
-                MetroGameWindow.Instance.Tick();
-            };
+                while(true)
+                {
+                    MetroGameWindow.Instance.Tick();
+                }
+            });
+
+            //CompositionTarget.Rendering += (o, a) =>
+            //{
+            //    MetroGameWindow.Instance.Tick();
+            //};
         }
         
         public override void Exit()
