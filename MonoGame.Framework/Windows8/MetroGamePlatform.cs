@@ -17,6 +17,7 @@ using Windows.UI.Xaml.Media;
 #if WINDOWS_PHONE81
 using Windows.UI.Xaml;
 using System.Threading.Tasks;
+using Windows.System.Threading;
 #endif
 
 namespace Microsoft.Xna.Framework
@@ -115,18 +116,14 @@ namespace Microsoft.Xna.Framework
 
         public override void StartRunLoop()
         {
-            Task inputTask = Task.Run(() =>
-            {
-                while(true)
-                {
-                    MetroGameWindow.Instance.Tick();
-                }
-            });
-
-            //CompositionTarget.Rendering += (o, a) =>
-            //{
-            //    MetroGameWindow.Instance.Tick();
-            //};
+            // Create a task that will be run on a background thread.
+            var workItemHandler = new WorkItemHandler((action) =>
+                {   
+                    //while (action.Status == AsyncStatus.Started)
+                    while (!MetroGameWindow.Instance.IsExiting)
+                        MetroGameWindow.Instance.Tick();
+                });
+            var m_renderLoopWorker = ThreadPool.RunAsync(workItemHandler, WorkItemPriority.High, WorkItemOptions.TimeSliced);
         }
         
         public override void Exit()

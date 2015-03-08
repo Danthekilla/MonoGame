@@ -14,6 +14,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Controls;
 using System.Threading.Tasks;
+using Windows.System.Threading;
 
 namespace Microsoft.Xna.Framework
 {
@@ -44,7 +45,7 @@ namespace Microsoft.Xna.Framework
                 //inputElement.PointerMoved += UIElement_PointerMoved;
                 //inputElement.PointerWheelChanged += UIElement_PointerWheelChanged;    
 
-                Task inputTask = Task.Run(() =>
+                var workItemHandler = new WorkItemHandler((action) =>
                 {
                     SwapChainBackgroundPanel swapChainBackgroundPanel = (SwapChainBackgroundPanel)inputElement;
                     CoreIndependentInputSource coreIndependentInputSource = swapChainBackgroundPanel.CreateCoreIndependentInputSource(CoreInputDeviceTypes.Touch);
@@ -53,6 +54,7 @@ namespace Microsoft.Xna.Framework
                     coreIndependentInputSource.PointerReleased += coreIndependentInputSource_PointerReleased;
                     coreIndependentInputSource.Dispatcher.ProcessEvents(CoreProcessEventsOption.ProcessUntilQuit);
                 });
+                var m_renderLoopWorker = ThreadPool.RunAsync(workItemHandler, WorkItemPriority.High, WorkItemOptions.TimeSliced);
             }
             else
             {
@@ -83,7 +85,7 @@ namespace Microsoft.Xna.Framework
         void coreIndependentInputSource_PointerReleased(object sender, PointerEventArgs args)
         {
             EvntIn("PointerReleased", -1);
-            PointerPressed(args.CurrentPoint, null, null);
+            PointerReleased(args.CurrentPoint, null, null);
             args.Handled = true;
             EvntOut("PointerReleased");
         }
