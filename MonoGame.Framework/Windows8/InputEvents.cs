@@ -35,7 +35,7 @@ namespace Microsoft.Xna.Framework
             window.Activated += CoreWindow_Activated;
             window.SizeChanged += CoreWindow_SizeChanged;
 
-            if (inputElement != null)
+            //if (inputElement != null)
             {
                 // If we have an input UIElement then we bind input events
                 // to it else we'll get events for overlapping XAML controls.
@@ -45,18 +45,18 @@ namespace Microsoft.Xna.Framework
                 //inputElement.PointerMoved += UIElement_PointerMoved;
                 //inputElement.PointerWheelChanged += UIElement_PointerWheelChanged;    
 
-                var workItemHandler = new WorkItemHandler((action) =>
-                {
-                    SwapChainBackgroundPanel swapChainBackgroundPanel = (SwapChainBackgroundPanel)inputElement;
-                    CoreIndependentInputSource coreIndependentInputSource = swapChainBackgroundPanel.CreateCoreIndependentInputSource(CoreInputDeviceTypes.Touch);
-                    coreIndependentInputSource.PointerPressed += coreIndependentInputSource_PointerPressed;
-                    coreIndependentInputSource.PointerMoved += coreIndependentInputSource_PointerMoved;
-                    coreIndependentInputSource.PointerReleased += coreIndependentInputSource_PointerReleased;
-                    coreIndependentInputSource.Dispatcher.ProcessEvents(CoreProcessEventsOption.ProcessUntilQuit);
-                });
-                var m_renderLoopWorker = ThreadPool.RunAsync(workItemHandler, WorkItemPriority.High, WorkItemOptions.TimeSliced);
+                //var workItemHandler = new WorkItemHandler((action) =>
+                //
+                //    SwapChainBackgroundPanel swapChainBackgroundPanel = (SwapChainBackgroundPanel)inputElement;
+                //    CoreIndependentInputSource coreIndependentInputSource = swapChainBackgroundPanel.CreateCoreIndependentInputSource(CoreInputDeviceTypes.Touch);
+                //    coreIndependentInputSource.PointerPressed += coreIndependentInputSource_PointerPressed;
+                //    coreIndependentInputSource.PointerMoved += coreIndependentInputSource_PointerMoved;
+                //    coreIndependentInputSource.PointerReleased += coreIndependentInputSource_PointerReleased;
+                //    coreIndependentInputSource.Dispatcher.ProcessEvents(CoreProcessEventsOption.ProcessUntilQuit);
+                //});
+                //var m_renderLoopWorker = ThreadPool.RunAsync(workItemHandler, WorkItemPriority.High, WorkItemOptions.TimeSliced);
             }
-            else
+            //else
             {
                 // If we only have a CoreWindow then use it for input events.
                 window.PointerPressed += CoreWindow_PointerPressed;
