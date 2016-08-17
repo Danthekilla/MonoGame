@@ -53,6 +53,17 @@ namespace Microsoft.Xna.Framework.Graphics
             PlatformGetData<T>(cubeMapFace, data);
         }
 
+	    public void GetData<T>(CubeMapFace cubeMapFace, T[] data, int startIndex, int elementCount) where T : struct
+	    {
+	        
+	    }
+
+	    public void GetData<T>(CubeMapFace cubeMapFace, int level, Rectangle? rect, T[] data, int startIndex, int elementCount) where T : struct
+	    {
+            ValidateParams(level, rect, data, startIndex, elementCount);
+	        
+	    }
+
 		public void SetData<T> (CubeMapFace face, T[] data) where T : struct
 		{
             SetData(face, 0, null, data, 0, data.Length);
@@ -65,8 +76,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		
         public void SetData<T>(CubeMapFace face, int level, Rectangle? rect, T[] data, int startIndex, int elementCount) where T : struct
 		{
-            if (data == null) 
-                throw new ArgumentNullException("data");
+            ValidateParams(level, rect, data, startIndex, elementCount);
 
             var elementSizeInByte = Marshal.SizeOf(typeof(T));
 			var dataHandle = GCHandle.Alloc(data, GCHandleType.Pinned);
@@ -121,6 +131,28 @@ namespace Microsoft.Xna.Framework.Graphics
                 dataHandle.Free();
             }
 		}
+
+        private void ValidateParams<T>(int level, Rectangle? rect, T[] data, int startIndex, int elementCount) where T : struct
+        {
+            var textureBounds = new Rectangle(0, 0, Math.Max(Size >> level, 1), Math.Max(Size >> level, 1));
+            var checkedRect = rect.HasValue ? rect.Value : textureBounds;
+            if (level < 0 || level >= LevelCount)
+                throw new ArgumentException("level must be smaller than the number of levels in this texture.");
+            if (!textureBounds.Contains(checkedRect))
+                throw new ArgumentException("Rectangle must be inside the texture bounds", "rect");
+            if (data == null)
+                throw new ArgumentNullException("data");
+            var tSize = Marshal.SizeOf(typeof(T));
+            var fSize = Format.GetSize();
+            if (tSize > fSize || fSize % tSize != 0)
+                throw new ArgumentException("Type T is of an invalid size for the format of this texture.", "T");
+            if (startIndex < 0 || startIndex >= data.Length)
+                throw new ArgumentException("startIndex must be at least zero and smaller than data.Length.", "startIndex");
+            if (data.Length < startIndex + elementCount)
+                throw new ArgumentException("The data array is too small.");
+            if (elementCount * tSize != checkedRect.Width * checkedRect.Height * fSize)
+                throw new ArgumentException("elementCount is too large or too small.", "elementCount");
+        }
 	}
 }
 
