@@ -320,7 +320,7 @@ namespace MGCB
                         message = ex.ContentIdentity.SourceFilename;
                         if (!string.IsNullOrEmpty(ex.ContentIdentity.FragmentIdentifier))
                             message += "(" + ex.ContentIdentity.FragmentIdentifier + ")";
-                        message += ": ";
+                        message += ": error: ";
                     }
                     message += ex.Message;
                     Console.WriteLine(message);
