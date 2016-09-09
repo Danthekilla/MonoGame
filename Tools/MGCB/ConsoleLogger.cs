@@ -28,7 +28,7 @@ namespace MonoGame.Framework.Content.Pipeline.Builder
                 warning = contentIdentity.SourceFilename;
                 if (!string.IsNullOrEmpty(contentIdentity.FragmentIdentifier))
                     warning += "(" + contentIdentity.FragmentIdentifier + ")";
-                warning += ": ";
+                warning += ": warning : ";
             }
             warning += string.Format(message, messageArgs);
             Console.WriteLine(warning);
