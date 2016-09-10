@@ -3,6 +3,7 @@
 // file 'LICENSE.txt', which is part of this source code package.
 
 using System;
+using System.Text.RegularExpressions;
 using Microsoft.Xna.Framework.Content.Pipeline;
 
 namespace MonoGame.Framework.Content.Pipeline.Builder
@@ -33,7 +34,17 @@ namespace MonoGame.Framework.Content.Pipeline.Builder
             }
             else
                 warning = PeekFile() + " "; 
-            warning += ": warning : ";
+            warning += ": warning ";
+            
+            // extract errorCode from MGFX message
+            var match = Regex.Match(message, @"([A-Z]*[0-9]*):(.*)");
+            if (match.Success || match.Groups.Count == 2)
+            {
+                warning += match.Groups[1].Value + " ";
+                message = match.Groups[2].Value;
+            }
+
+            warning += ": ";
             warning += string.Format(message, messageArgs);
             Console.WriteLine(warning);
         }
