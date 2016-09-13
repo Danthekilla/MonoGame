@@ -179,6 +179,9 @@ namespace Microsoft.Xna.Framework.Graphics
             _currentRenderTargets[0] = _renderTargetView;
             _currentDepthStencilView = _depthStencilView;
 			
+            // TNC: _renderTargetView Width & Height dont change on WP8 when using DrawingSurfaceBackgroundGrid.
+            if (_depthStencilView != null) return;
+            
             var resource = _renderTargetView.Resource;
             using (var texture2D = new SharpDX.Direct3D11.Texture2D(resource.NativePointer))
             {
