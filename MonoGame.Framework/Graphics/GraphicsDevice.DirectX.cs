@@ -156,10 +156,13 @@ namespace Microsoft.Xna.Framework.Graphics
         private void UpdateDevice(Device device, DeviceContext context)
         {
             // TODO: Lost device logic!
-            SharpDX.Utilities.Dispose(ref _d3dDevice);
+            // TNC: fix resume crash
+            //SharpDX.Utilities.Dispose(ref _d3dDevice);
             _d3dDevice = device;
 
-            SharpDX.Utilities.Dispose(ref _d3dContext);
+            // TNC: fix resume crash
+            //SharpDX.Utilities.Dispose(ref _d3dContext);
+			context.ClearState();
             _d3dContext = context;
 
             SharpDX.Utilities.Dispose(ref _depthStencilView);
@@ -222,6 +225,10 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             // Display orientation is always portrait on WP8
             PresentationParameters.DisplayOrientation = DisplayOrientation.Portrait;
+
+            // TNC: that's valid only for DrawingSurfaceBackgroundGrid
+            PresentationParameters.BackBufferWidth = (int)WindowsPhoneGameWindow.Width;
+            PresentationParameters.BackBufferHeight = (int)WindowsPhoneGameWindow.Height;
         }
 
 #endif

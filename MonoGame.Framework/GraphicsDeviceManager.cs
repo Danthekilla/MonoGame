@@ -253,8 +253,10 @@ namespace Microsoft.Xna.Framework
 
             PreparePresentationParameters(_graphicsDevice.PresentationParameters);
 
+            try { /* TNC: When suspent and resume very quickly, a NullReferenceException is thrown from SharpDX. */
             // TODO: Should this trigger some sort of device reset?
             _graphicsDevice.GraphicsProfile = GraphicsProfile;
+            } catch (NullReferenceException nre) { /* TNC: When suspent and resume very quickly, a NullReferenceException is thrown from SharpDX. */}
 
             // Allow for optional platform specific behavior.
             PlatformApplyChanges();

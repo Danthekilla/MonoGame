@@ -198,16 +198,17 @@ namespace Microsoft.Xna.Framework.Graphics
         {
 #if WINDOWS_PHONE
             WriteableBitmap bitmap = null;
-            Threading.BlockOnUIThread(() =>
-            {
-                try
+            //TNC: Threading.BlockOnUIThread has a timeout. We call this from Async.
+            //Threading.BlockOnUIThread(() =>
+            var waitEvent = new ManualResetEventSlim(false);
+            Deployment.Current.Dispatcher.BeginInvoke(() =>
                 {
                     BitmapImage bitmapImage = new BitmapImage();
                     bitmapImage.SetSource(stream);
                     bitmap = new WriteableBitmap(bitmapImage);
-                }
-                catch { }
+                    waitEvent.Set();
             });
+            waitEvent.Wait();
 
             // Convert from ARGB to ABGR 
             ConvertToABGR(bitmap.PixelHeight, bitmap.PixelWidth, bitmap.Pixels);
