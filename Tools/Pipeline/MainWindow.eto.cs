@@ -15,7 +15,7 @@ namespace MonoGame.Tools.Pipeline
         public Command cmdUndo, cmdRedo, cmdAdd, cmdExclude, cmdRename, cmdDelete;
         public Command cmdNewItem, cmdNewFolder, cmdExistingItem, cmdExistingFolder;
         public Command cmdBuild, cmdRebuild, cmdClean, cmdCancelBuild;
-        public CheckCommand cmdDebugMode;
+        public CheckCommand cmdDebugMode, cmdMultithreadMode;
         public Command cmdHelp, cmdAbout;
         public Command cmdOpenItem, cmdOpenItemWith, cmdOpenItemLocation, cmdRebuildItem;
 
@@ -95,6 +95,7 @@ namespace MonoGame.Tools.Pipeline
             cmdClean.Executed += CmdClean_Executed;
             cmdCancelBuild.Executed += CmdCancelBuild_Executed;
             cmdDebugMode.CheckedChanged += CmdDebugMode_Executed;
+            cmdMultithreadMode.CheckedChanged += CmdMultithreadMode_Executed;
 
             cmdHelp.Executed += CmdHelp_Executed;
             cmdAbout.Executed += CmdAbout_Executed;
@@ -219,6 +220,10 @@ namespace MonoGame.Tools.Pipeline
             cmdDebugMode = new CheckCommand();
             cmdDebugMode.MenuText = "Debug Mode";
 
+            cmdMultithreadMode = new CheckCommand();
+            cmdMultithreadMode.MenuText = "Multithread Mode (experimental)";
+            cmdMultithreadMode.ToolTip = "Multithread Mode (experimental)";
+
             // Help Commands
 
             cmdHelp = new Command();
@@ -303,6 +308,7 @@ namespace MonoGame.Tools.Pipeline
             menuBuild.Items.Add(cmdCancelBuild);
             menuBuild.Items.Add(new SeparatorMenuItem());
             menuBuild.Items.Add(cmdDebugMode);
+            menuBuild.Items.Add(cmdMultithreadMode);
             Menu.Items.Add(menuBuild);
 
             menuHelp = new ButtonMenuItem();

@@ -384,6 +384,8 @@ namespace MonoGame.Tools.Pipeline
             var commands = string.Format("/@:\"{0}\" {1}", _project.OriginalPath, rebuild ? "/rebuild" : string.Empty);
             if (LaunchDebugger)
                 commands += " /launchdebugger";
+            if (PipelineSettings.Default.MultithreadMode)
+                commands += " /multithreadMode";
             BuildCommand(commands);
         }
 
@@ -439,6 +441,8 @@ namespace MonoGame.Tools.Pipeline
             var commands = string.Format("/@:\"{0}\" /rebuild /incremental", tempPath);
             if (LaunchDebugger)
                 commands += " /launchdebugger";
+            if (PipelineSettings.Default.MultithreadMode)
+                commands += " /multithreadMode";
 
             BuildCommand(commands);
 
@@ -474,6 +478,8 @@ namespace MonoGame.Tools.Pipeline
             var commands = string.Format("/clean /intermediateDir:\"{0}\" /outputDir:\"{1}\"", _project.IntermediateDir, _project.OutputDir);
             if (LaunchDebugger)
                 commands += " /launchdebugger";
+            if (PipelineSettings.Default.MultithreadMode)
+                commands += " /multithreadMode";
 
             _buildTask = Task.Factory.StartNew(() => DoBuild(commands));
             _buildTask.ContinueWith((e) => View.Invoke(UpdateMenu));
