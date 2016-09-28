@@ -190,8 +190,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 
 #endif
-            _backBufferFormat = SurfaceFormat.Color;
-
             MaxTextureSlots = 16;
 
             GL.GetInteger(GetPName.MaxTextureImageUnits, out MaxTextureSlots);
@@ -1077,7 +1075,7 @@ namespace Microsoft.Xna.Framework.Graphics
             GL.ReadPixels(rect.X, flippedY, rect.Width, rect.Height, PixelFormat.Rgba, PixelType.UnsignedByte, data);
 
             // buffer is returned upside down, so we swap the rows around when copying over
-            var rowSize = rect.Width*_backBufferFormat.GetSize() / tSize;
+            var rowSize = rect.Width*PresentationParameters.BackBufferFormat.GetSize() / tSize;
             var row = new T[rowSize];
             for (var dy = 0; dy < rect.Height/2; dy++)
             {
