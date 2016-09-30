@@ -47,6 +47,9 @@ namespace Microsoft.Xna.Framework.Content
             var loopLength = input.ReadInt32();
             var durationMs = input.ReadInt32();
 
+            if(existingInstance != null)
+                return existingInstance;
+
             // Create the effect.
             var effect = new SoundEffect(header, data, dataSize, durationMs, loopStart, loopLength);
 

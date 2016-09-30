@@ -157,10 +157,13 @@ namespace Microsoft.Xna.Framework.Graphics
         private void UpdateDevice(Device device, DeviceContext context)
         {
             // TODO: Lost device logic!
-            SharpDX.Utilities.Dispose(ref _d3dDevice);
+            // TNC: fix resume crash
+            //SharpDX.Utilities.Dispose(ref _d3dDevice);
             _d3dDevice = device;
 
-            SharpDX.Utilities.Dispose(ref _d3dContext);
+            // TNC: fix resume crash
+            //SharpDX.Utilities.Dispose(ref _d3dContext);
+			context.ClearState();
             _d3dContext = context;
 
             SharpDX.Utilities.Dispose(ref _depthStencilView);
@@ -180,6 +183,9 @@ namespace Microsoft.Xna.Framework.Graphics
             _currentRenderTargets[0] = _renderTargetView;
             _currentDepthStencilView = _depthStencilView;
 			
+            // TNC: _renderTargetView Width & Height dont change on WP8 when using DrawingSurfaceBackgroundGrid.
+            if (_depthStencilView != null) return;
+            
             var resource = _renderTargetView.Resource;
             using (var texture2D = new SharpDX.Direct3D11.Texture2D(resource.NativePointer))
             {
@@ -220,6 +226,10 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             // Display orientation is always portrait on WP8
             PresentationParameters.DisplayOrientation = DisplayOrientation.Portrait;
+
+            // TNC: that's valid only for DrawingSurfaceBackgroundGrid
+            PresentationParameters.BackBufferWidth = (int)WindowsPhoneGameWindow.Width;
+            PresentationParameters.BackBufferHeight = (int)WindowsPhoneGameWindow.Height;
         }
 
 #endif
@@ -273,15 +283,12 @@ namespace Microsoft.Xna.Framework.Graphics
             // Pass the preferred feature levels based on the
             // target profile that may have been set by the user.
             var featureLevels = new List<FeatureLevel>();
-            if (GraphicsProfile == GraphicsProfile.HiDef)
-            {
-                featureLevels.Add(FeatureLevel.Level_11_1);
-                featureLevels.Add(FeatureLevel.Level_11_0);
-                featureLevels.Add(FeatureLevel.Level_10_1);
-                featureLevels.Add(FeatureLevel.Level_10_0);
-            }
-            featureLevels.Add(FeatureLevel.Level_9_3);
-            featureLevels.Add(FeatureLevel.Level_9_2);
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_1) featureLevels.Add(FeatureLevel.Level_11_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_0) featureLevels.Add(FeatureLevel.Level_11_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_1) featureLevels.Add(FeatureLevel.Level_10_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_0) featureLevels.Add(FeatureLevel.Level_10_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_3) featureLevels.Add(FeatureLevel.Level_9_3);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_2) featureLevels.Add(FeatureLevel.Level_9_2);
             featureLevels.Add(FeatureLevel.Level_9_1);
 
             var driverType = GraphicsAdapter.UseReferenceDevice ? DriverType.Reference : DriverType.Hardware;
@@ -476,10 +483,10 @@ namespace Microsoft.Xna.Framework.Graphics
                     // latency and ensures that the application will only render after each VSync, minimizing 
                     // power consumption.
                     dxgiDevice2.MaximumFrameLatency = 1;
+
+                    _swapChain.Rotation = SharpDX.DXGI.DisplayModeRotation.Identity;
                 }
             }
-
-            _swapChain.Rotation = SharpDX.DXGI.DisplayModeRotation.Identity;
 
 #if WINDOWS_UAP
             // Counter act the composition scale of the render target as 
@@ -597,29 +604,14 @@ namespace Microsoft.Xna.Framework.Graphics
             // Pass the preferred feature levels based on the
             // target profile that may have been set by the user.
             var featureLevels = new List<FeatureLevel>();
-            if (GraphicsProfile == GraphicsProfile.HiDef)
-            {
-                featureLevels.Add(FeatureLevel.Level_11_0);
-                featureLevels.Add(FeatureLevel.Level_10_1);
-                featureLevels.Add(FeatureLevel.Level_10_0);
-            }
-
-            // We can not give featureLevels for granted in GraphicsProfile.Reach
-            FeatureLevel supportedFeatureLevel = 0;
-            try
-            {
-                supportedFeatureLevel = SharpDX.Direct3D11.Device.GetSupportedFeatureLevel();
-            }
-            catch (SharpDX.SharpDXException)
-            {
-                // if GetSupportedFeatureLevel() fails, do not crash the initialization. Program can run without this.
-            }
-
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_3)
-                featureLevels.Add(FeatureLevel.Level_9_3);
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_2)
-                featureLevels.Add(FeatureLevel.Level_9_2);
-            if (supportedFeatureLevel >= FeatureLevel.Level_9_1)
+            #if !WINDOWS
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_1) featureLevels.Add(FeatureLevel.Level_11_1);
+            #endif
+            if (GraphicsProfile >= GraphicsProfile.Profile_11_0) featureLevels.Add(FeatureLevel.Level_11_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_1) featureLevels.Add(FeatureLevel.Level_10_1);
+            if (GraphicsProfile >= GraphicsProfile.Profile_10_0) featureLevels.Add(FeatureLevel.Level_10_0);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_3) featureLevels.Add(FeatureLevel.Level_9_3);
+            if (GraphicsProfile >= GraphicsProfile.Profile_09_2) featureLevels.Add(FeatureLevel.Level_9_2);
                 featureLevels.Add(FeatureLevel.Level_9_1);
 
             var driverType = DriverType.Hardware;   //Default value
@@ -1561,13 +1553,79 @@ namespace Microsoft.Xna.Framework.Graphics
 
             GraphicsProfile graphicsProfile;
 
-            if (featureLevel >= FeatureLevel.Level_10_0 || GraphicsAdapter.UseReferenceDevice)
-                graphicsProfile = GraphicsProfile.HiDef;
+            #if !WINDOWS
+            if (featureLevel >= FeatureLevel.Level_11_1 || GraphicsAdapter.UseReferenceDevice)   graphicsProfile = GraphicsProfile.Profile_11_1;
             else
-                graphicsProfile = GraphicsProfile.Reach;
+            #endif
+                 if (featureLevel >= FeatureLevel.Level_11_0 || GraphicsAdapter.UseReferenceDevice)   graphicsProfile = GraphicsProfile.Profile_11_0;
+            else if (featureLevel >= FeatureLevel.Level_10_1)   graphicsProfile = GraphicsProfile.Profile_10_1;
+            else if (featureLevel >= FeatureLevel.Level_10_0)   graphicsProfile = GraphicsProfile.Profile_10_0; //GraphicsProfile.HiDef;
+            else if (featureLevel >= FeatureLevel.Level_9_3)    graphicsProfile = GraphicsProfile.Profile_09_3;
+            else if (featureLevel >= FeatureLevel.Level_9_2)    graphicsProfile = GraphicsProfile.Profile_09_2;
+            else                                                graphicsProfile = GraphicsProfile.Reach; //Profile_09_1
 
             return graphicsProfile;
         }
+        
+        #if WINDOWS_STOREAPP || WINDOWS_UAP
+        
+        internal void SetRotation(DisplayOrientation orientation)
+        {
+            if (!PresentationParameters.LockToNativeOrientation) return;
+
+            PresentationParameters.DisplayOrientation = orientation;
+            //Microsoft.Xna.Framework.Input.Touch.TouchPanel.DisplayWidth = PresentationParameters.BackBufferWidth;
+            //Microsoft.Xna.Framework.Input.Touch.TouchPanel.DisplayHeight = PresentationParameters.BackBufferHeight;
+            Microsoft.Xna.Framework.Input.Touch.TouchPanel.DisplayOrientation = PresentationParameters.DisplayOrientation;
+            //Microsoft.Xna.Framework.Input.Touch.TouchPanel.DisplayOrientation = DisplayOrientation.LandscapeLeft;
+            _swapChain.Rotation = OrientationToRotation(orientation);
+        }
+
+        private SharpDX.DXGI.DisplayModeRotation OrientationToRotation(DisplayOrientation orientation)
+        {
+            
+            DisplayOrientations nativeOrientation =  DisplayInformation.GetForCurrentView().NativeOrientation;
+
+            if(nativeOrientation == DisplayOrientations.Portrait)
+			{
+            	switch (orientation)
+            	{
+	                case DisplayOrientation.Default:
+	                    return SharpDX.DXGI.DisplayModeRotation.Identity;
+	                case DisplayOrientation.Portrait:
+	                    return SharpDX.DXGI.DisplayModeRotation.Identity;
+	                case DisplayOrientation.PortraitDown:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate180;
+	                case DisplayOrientation.LandscapeLeft:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate270;
+	                case DisplayOrientation.LandscapeRight:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate90;
+	                case DisplayOrientation.Unknown:
+	                default:
+	                    return SharpDX.DXGI.DisplayModeRotation.Unspecified;
+            	}
+			}
+            else
+			{
+            	switch (orientation)
+            	{
+	                case DisplayOrientation.Default:
+	                    return SharpDX.DXGI.DisplayModeRotation.Identity;
+	                case DisplayOrientation.LandscapeLeft:
+	                    return SharpDX.DXGI.DisplayModeRotation.Identity;
+	                case DisplayOrientation.LandscapeRight:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate180;
+	                case DisplayOrientation.Portrait:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate270;
+	                case DisplayOrientation.PortraitDown:
+	                    return SharpDX.DXGI.DisplayModeRotation.Rotate90;
+	                case DisplayOrientation.Unknown:
+	                default:
+	                    return SharpDX.DXGI.DisplayModeRotation.Unspecified;
+            	}
+			}
+        }
+        #endif
 
 #if WINDOWS_STOREAPP || WINDOWS_UAP
         internal void Trim()

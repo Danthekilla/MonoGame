@@ -21,6 +21,7 @@ namespace Microsoft.Xna.Framework
         private DepthFormat _preferredDepthStencilFormat;
         private bool _preferMultiSampling;
         private DisplayOrientation _supportedOrientations;
+        private bool _lockToNativeOrientation = false;
         private bool _synchronizedWithVerticalRetrace = true;
         private bool _drawBegun;
         private bool _disposed;
@@ -215,6 +216,7 @@ namespace Microsoft.Xna.Framework
             presentationParameters.IsFullScreen = _wantFullScreen;
             presentationParameters.PresentationInterval = _synchronizedWithVerticalRetrace ? PresentInterval.One : PresentInterval.Immediate;
             presentationParameters.DisplayOrientation = _game.Window.CurrentOrientation;
+            presentationParameters.LockToNativeOrientation = _lockToNativeOrientation;
             presentationParameters.DeviceWindowHandle = _game.Window.Handle;
 
             if (_preferMultiSampling)
@@ -251,8 +253,10 @@ namespace Microsoft.Xna.Framework
 
             PreparePresentationParameters(_graphicsDevice.PresentationParameters);
 
+            try { /* TNC: When suspent and resume very quickly, a NullReferenceException is thrown from SharpDX. */
             // TODO: Should this trigger some sort of device reset?
             _graphicsDevice.GraphicsProfile = GraphicsProfile;
+            } catch (NullReferenceException nre) { /* TNC: When suspent and resume very quickly, a NullReferenceException is thrown from SharpDX. */}
 
             // Allow for optional platform specific behavior.
             PlatformApplyChanges();
@@ -308,6 +312,10 @@ namespace Microsoft.Xna.Framework
             TouchPanel.DisplayWidth = _graphicsDevice.PresentationParameters.BackBufferWidth;
             TouchPanel.DisplayHeight = _graphicsDevice.PresentationParameters.BackBufferHeight;
             TouchPanel.DisplayOrientation = _graphicsDevice.PresentationParameters.DisplayOrientation;
+
+#if WINDOWS_STOREAPP || WINDOWS_UAP
+            GraphicsDevice.SetRotation(_graphicsDevice.PresentationParameters.DisplayOrientation);
+#endif
         }
 
         /// <summary>
@@ -503,6 +511,19 @@ namespace Microsoft.Xna.Framework
             {
                 _supportedOrientations = value;
             }
+        }
+
+        public bool LockToNativeOrientation 
+        {
+            get { return _lockToNativeOrientation; } 
+            set 
+            {
+#if WINDOWS_STOREAPP || WINDOWS_UAP
+                _lockToNativeOrientation = value;
+#else
+                throw new PlatformNotSupportedException();
+#endif
+            } 
         }
     }
 }

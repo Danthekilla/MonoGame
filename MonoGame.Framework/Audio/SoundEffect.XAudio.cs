@@ -108,7 +108,7 @@ namespace Microsoft.Xna.Framework.Audio
             {
                 if (Device == null)
                 {
-#if !WINRT && DEBUG
+#if !WINRT && DEBUG && RELEASE // tnc: disable XAudio DebugEngine
                     try
                     {
                         //Fails if the XAudio2 SDK is not installed

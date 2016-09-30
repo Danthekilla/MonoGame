@@ -26,10 +26,19 @@ namespace Microsoft.Xna.Framework.Content
 		private IServiceProvider serviceProvider;
 		private IGraphicsDeviceService graphicsDeviceService;
         private Dictionary<string, object> loadedAssets = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        internal Dictionary<string, object> loadedSharedResources = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 		private List<IDisposable> disposableAssets = new List<IDisposable>();
         private bool disposed;
         private byte[] scratchBuffer;
 
+        public readonly static HashSet<Type> ReloadGraphicsAssetsTypes = new HashSet<Type>(new[] {
+                typeof(Microsoft.Xna.Framework.Graphics.Texture2D),
+                typeof(Microsoft.Xna.Framework.Graphics.Texture3D),
+                typeof(Microsoft.Xna.Framework.Graphics.TextureCube),
+                typeof(Microsoft.Xna.Framework.Graphics.SpriteFont),
+                typeof(Microsoft.Xna.Framework.Graphics.Model),
+            });
+		
 		private static object ContentManagerLock = new object();
         private static List<WeakReference> ContentManagers = new List<WeakReference>();
 
@@ -391,6 +400,9 @@ namespace Microsoft.Xna.Framework.Content
         {
             foreach (var asset in LoadedAssets)
             {
+                if (!ReloadGraphicsAssetsTypes.Contains(asset.Value.GetType()))
+                    continue;                
+                
                 // This never executes as asset.Key is never null.  This just forces the 
                 // linker to include the ReloadAsset function when AOT compiled.
                 if (asset.Key == null)
@@ -447,6 +459,7 @@ namespace Microsoft.Xna.Framework.Content
 		    }
 			disposableAssets.Clear();
 		    loadedAssets.Clear();
+		    loadedSharedResources.Clear();
 		}
 
 		public string RootDirectory
