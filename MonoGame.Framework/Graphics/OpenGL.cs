@@ -1004,6 +1004,11 @@ namespace OpenGL
 
         [System.Security.SuppressUnmanagedCodeSecurity()]
         [MonoNativeFunctionWrapper]       
+        public delegate void ReadPixelsDelegate(int x, int y, int width, int height, PixelFormat format, PixelType type, [Out] IntPtr data);
+        internal static ReadPixelsDelegate ReadPixelsInternal;
+
+        [System.Security.SuppressUnmanagedCodeSecurity()]
+        [MonoNativeFunctionWrapper]
         internal delegate void GetTexImageDelegate(TextureTarget target, int level, PixelFormat format, PixelType type, [Out] IntPtr pixels);
         internal static GetTexImageDelegate GetTexImageInternal;
 
@@ -1187,6 +1192,7 @@ namespace OpenGL
             TexSubImage2D = (TexSubImage2DDelegate)LoadEntryPoint<TexSubImage2DDelegate>("glTexSubImage2D");
             PixelStore = (PixelStoreDelegate)LoadEntryPoint<PixelStoreDelegate>("glPixelStorei");
             Finish = (FinishDelegate)LoadEntryPoint<FinishDelegate>("glFinish");
+            ReadPixelsInternal = (ReadPixelsDelegate)LoadEntryPoint<ReadPixelsDelegate>("glReadPixels");
             GetTexImageInternal = (GetTexImageDelegate)LoadEntryPoint<GetTexImageDelegate>("glGetTexImage");
             TexImage3D = (TexImage3DDelegate)LoadEntryPoint<TexImage3DDelegate>("glTexImage3D");
             TexSubImage3D = (TexSubImage3DDelegate)LoadEntryPoint<TexSubImage3DDelegate>("glTexSubImage3D");
@@ -1364,6 +1370,19 @@ namespace OpenGL
             finally
             {
                 pixels_ptr.Free();
+            }
+        }
+
+        public static void ReadPixels<T>(int x, int y, int width, int height, PixelFormat format, PixelType type, T[] data)
+        {
+            var dataPtr = GCHandle.Alloc(data, GCHandleType.Pinned);
+            try
+            {
+                ReadPixelsInternal(x, y, width, height, format, type, dataPtr.AddrOfPinnedObject());
+            }
+            finally
+            {
+                dataPtr.Free();
             }
         }
     }

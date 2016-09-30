@@ -30,6 +30,8 @@ using OpenTK.Graphics.ES20;
 using FramebufferAttachment = OpenTK.Graphics.ES20.All;
 using RenderbufferStorage = OpenTK.Graphics.ES20.All;
 using GLPrimitiveType = OpenTK.Graphics.ES20.BeginMode;
+using PixelType = OpenTK.Graphics.ES20.All;
+using PixelFormat = OpenTK.Graphics.ES20.All;
 #endif
 
 
@@ -188,7 +190,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 
 #endif
-
             MaxTextureSlots = 16;
 
             GL.GetInteger(GetPName.MaxTextureImageUnits, out MaxTextureSlots);
@@ -1066,7 +1067,30 @@ namespace Microsoft.Xna.Framework.Graphics
         {
            return GraphicsProfile.HiDef;
         }
-        
+
+        private void PlatformGetBackBufferData<T>(Rectangle rect, T[] data, int startIndex, int count) where T : struct
+        {
+            var tSize = Marshal.SizeOf(typeof(T));
+            var flippedY = PresentationParameters.BackBufferHeight - rect.Y - rect.Height;
+            GL.ReadPixels(rect.X, flippedY, rect.Width, rect.Height, PixelFormat.Rgba, PixelType.UnsignedByte, data);
+
+            // buffer is returned upside down, so we swap the rows around when copying over
+            var rowSize = rect.Width*PresentationParameters.BackBufferFormat.GetSize() / tSize;
+            var row = new T[rowSize];
+            for (var dy = 0; dy < rect.Height/2; dy++)
+            {
+                var topRow = startIndex + dy*rowSize;
+                var bottomRow = startIndex + (rect.Height - dy - 1)*rowSize;
+                // copy the bottom row to buffer
+                Array.Copy(data, bottomRow, row, 0, rowSize);
+                // copy top row to bottom row
+                Array.Copy(data, topRow, data, bottomRow, rowSize);
+                // copy buffer to top row
+                Array.Copy(row, 0, data, topRow, rowSize);
+                count -= rowSize;
+            }
+        }
+
         private static Rectangle PlatformGetTitleSafeArea(int x, int y, int width, int height)
         {
             return new Rectangle(x, y, width, height);

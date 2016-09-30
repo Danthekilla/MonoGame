@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 using SharpDX;
@@ -734,9 +735,7 @@ namespace Microsoft.Xna.Framework.Graphics
             }
 
             // Use BGRA for the swap chain.
-            var format = PresentationParameters.BackBufferFormat == SurfaceFormat.Color ?
-                            SharpDX.DXGI.Format.B8G8R8A8_UNorm :
-                            SharpDXHelper.ToFormat(PresentationParameters.BackBufferFormat);
+            var format = SharpDXHelper.ToFormat(PresentationParameters.BackBufferFormat);
 
             var multisampleDesc = new SharpDX.DXGI.SampleDescription(1, 0);
             if (PresentationParameters.MultiSampleCount > 1)
@@ -1448,7 +1447,8 @@ namespace Microsoft.Xna.Framework.Graphics
             }
         }
 
-        private void PlatformDrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int startIndex, int primitiveCount, int instanceCount)
+        private void PlatformDrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int startIndex,
+            int primitiveCount, int instanceCount)
         {
             lock (_d3dContext)
             {
@@ -1457,6 +1457,82 @@ namespace Microsoft.Xna.Framework.Graphics
                 _d3dContext.InputAssembler.PrimitiveTopology = ToPrimitiveTopology(primitiveType);
                 int indexCount = GetElementCountArray(primitiveType, primitiveCount);
                 _d3dContext.DrawIndexedInstanced(indexCount, instanceCount, startIndex, baseVertex, 0);
+            }
+        }
+
+        private void PlatformGetBackBufferData<T>(Rectangle rect, T[] data, int startIndex, int count) where T : struct
+        {
+            // TODO share code with Texture2D.GetData and do pooling for staging textures
+            // first set up a staging texture
+            const SurfaceFormat format = SurfaceFormat.Color;
+#if WINDOWS_PHONE
+                using (var backBufferTexture = new SharpDX.Direct3D11.Texture2D(_renderTargetView.Resource.NativePointer))
+#else
+            //You can't Map the BackBuffer surface, so we copy to another texture
+            using (var dxgiBackBuffer = _swapChain.GetBackBuffer<Surface>(0))
+            using (var backBufferTexture = dxgiBackBuffer.QueryInterface<SharpDX.Direct3D11.Texture2D>())
+#endif
+            {
+                var desc = backBufferTexture.Description;
+                desc.BindFlags = BindFlags.None;
+                desc.CpuAccessFlags = CpuAccessFlags.Read;
+                desc.Usage = ResourceUsage.Staging;
+                desc.OptionFlags = ResourceOptionFlags.None;
+
+                using (var stagingTex = new SharpDX.Direct3D11.Texture2D(_d3dDevice, desc))
+                {
+                    lock (_d3dContext)
+                    {
+                        // Copy the data from the GPU to the staging texture.
+#if WINDOWS_PHONE
+                            _d3dContext.CopySubresourceRegion(backBufferTexture, 0,
+                                new ResourceRegion(rect.Left, rect.Top, 0, rect.Right, rect.Bottom, 1), stagingTex, 0);
+#else
+                        using (var backBuffer = SharpDX.Direct3D11.Resource.FromSwapChain<SharpDX.Direct3D11.Texture2D>(_swapChain, 0))
+                        {
+                            _d3dContext.CopySubresourceRegion(backBuffer, 0,
+                                new ResourceRegion(rect.Left, rect.Top, 0, rect.Right, rect.Bottom, 1), stagingTex, 0);
+                        }
+#endif
+
+                        // Copy the data to the array.
+                        DataStream stream = null;
+                        try
+                        {
+                            var databox = _d3dContext.MapSubresource(stagingTex, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None, out stream);
+
+                            var elementsInRow = rect.Width;
+                            var rows = rect.Height;
+                            var elementSize = format.GetSize();
+                            var rowSize = elementSize * elementsInRow;
+                            if (rowSize == databox.RowPitch)
+                                stream.ReadRange(data, startIndex, count);
+                            else
+                            {
+                                // Some drivers may add pitch to rows.
+                                // We need to copy each row separately and skip trailing zeroes.
+                                stream.Seek(0, SeekOrigin.Begin);
+
+                                var elementSizeInByte = Marshal.SizeOf(typeof(T));
+                                for (var row = 0; row < rows; row++)
+                                {
+                                    int i;
+                                    for (i = row * rowSize / elementSizeInByte; i < (row + 1) * rowSize / elementSizeInByte; i++)
+                                        data[i + startIndex] = stream.Read<T>();
+
+                                    if (i >= count)
+                                        break;
+
+                                    stream.Seek(databox.RowPitch - rowSize, SeekOrigin.Current);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            SharpDX.Utilities.Dispose( ref stream);
+                        }
+                    }
+                }
             }
         }
 

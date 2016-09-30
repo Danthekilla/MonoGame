@@ -28,7 +28,7 @@ namespace MonoGame.Tests.Graphics
         private List<FramePixelData> _submittedFrames;
         private int _totalFramesExpected;
         private readonly IFrameComparer _frameComparer = new PixelDeltaFrameComparer();
-        private readonly ActionDaemon _writerThread = new ActionDaemon();
+        private static readonly ActionDaemon _writerThread = new ActionDaemon();
 
         #endregion
 
@@ -215,6 +215,10 @@ namespace MonoGame.Tests.Graphics
 
             // write results to console
             WriteComparisonResultReport(allResults, noReference);
+
+            // wait for the writing thread so it doesn't get terminated early
+            if (!_writerThread.Finished)
+                _writerThread.Thread.Join();
 
             // now do the actual assertions
             if (ExactNumberSubmits && _totalFramesExpected != allResults.Count)

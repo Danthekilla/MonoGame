@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 
 namespace Microsoft.Xna.Framework.Graphics
@@ -1133,6 +1134,60 @@ namespace Microsoft.Xna.Framework.Graphics
                 _graphicsMetrics._drawCount++;
                 _graphicsMetrics._primitiveCount += (ulong)(primitiveCount * instanceCount);
             }
+        }
+
+        /// <summary>
+        /// Gets the Pixel data of what is currently drawn on screen.
+        /// The format is whatever the current format of the backbuffer is.
+        /// </summary>
+        /// <typeparam name="T">A byte[] of size (ViewPort.Width * ViewPort.Height * 4)</typeparam>
+        public void GetBackBufferData<T>(T[] data) where T : struct
+        {
+            if (data == null)
+                throw new ArgumentNullException("data");
+            GetBackBufferData(null, data, 0, data.Length);
+        }
+
+        public void GetBackBufferData<T>(T[] data, int startIndex, int elementCount) where T : struct
+        {
+            GetBackBufferData(null, data, startIndex, elementCount);
+        }
+
+        public void GetBackBufferData<T>(Rectangle? rect, T[] data, int startIndex, int elementCount)
+            where T : struct
+        {
+            if (data == null)
+                throw new ArgumentNullException("data");
+            if (startIndex < 0 || startIndex >= data.Length)
+                throw new ArgumentException("startIndex must be at least zero and smaller than data.Length.", "startIndex");
+            if (data.Length < startIndex + elementCount)
+                throw new ArgumentException("The data array is too small.");
+
+            var tSize = Marshal.SizeOf(typeof(T));
+            var fSize = PresentationParameters.BackBufferFormat.GetSize();
+            if (tSize > fSize || fSize % tSize != 0)
+                throw new ArgumentException("Type T is of an invalid size for the format of the back buffer.", "T");
+
+            Rectangle rectangle;
+            if (rect.HasValue)
+            {
+                rectangle = rect.Value;
+
+                var width = PresentationParameters.BackBufferWidth;
+                var height = PresentationParameters.BackBufferHeight;
+
+                if (rectangle.X < 0 || rectangle.Y < 0 || rectangle.Width < 0 || rectangle.Height < 0 ||
+                    rectangle.Right > width || rectangle.Top > height)
+                    throw new ArgumentException("Rectangle must fit in BackBuffer dimensions");
+            }
+            else
+                rectangle = new Rectangle(0, 0, PresentationParameters.BackBufferWidth,
+                    PresentationParameters.BackBufferHeight);
+
+            if (elementCount * tSize != rectangle.Width * rectangle.Height * fSize)
+                throw new ArgumentException("elementCount is too large or too small.", "elementCount");
+
+            PlatformGetBackBufferData(rectangle, data, startIndex, elementCount);
         }
 
         private static int GetElementCountArray(PrimitiveType primitiveType, int primitiveCount)
