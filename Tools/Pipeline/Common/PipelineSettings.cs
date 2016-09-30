@@ -21,7 +21,7 @@ namespace MonoGame.Tools.Pipeline
         public string StartupProject;
         public Microsoft.Xna.Framework.Point Size;
         public int HSeparator, VSeparator;
-        public bool Maximized, FilterOutput, AutoScrollBuildOutput, DebugMode, PropertyGroupSort;
+        public bool Maximized, FilterOutput, AutoScrollBuildOutput, DebugMode, MultithreadMode, PropertyGroupSort;
 
         static PipelineSettings()
         {

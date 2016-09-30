@@ -83,6 +83,9 @@ namespace MonoGame.Tools.Pipeline
 
             cmdDebugMode.Checked = PipelineSettings.Default.DebugMode;
             CmdDebugMode_Executed(this, EventArgs.Empty);
+            
+            cmdMultithreadMode.Checked = PipelineSettings.Default.MultithreadMode; 
+            CmdMultithreadMode_Executed(this, EventArgs.Empty); 
 
             foreach (var control in _pads)
                 control.LoadSettings();
@@ -571,6 +574,11 @@ namespace MonoGame.Tools.Pipeline
         {
             PipelineSettings.Default.DebugMode = cmdDebugMode.Checked;
             PipelineController.Instance.LaunchDebugger = cmdDebugMode.Checked;
+        }
+
+        private void CmdMultithreadMode_Executed(object sender, EventArgs e)
+        {
+            PipelineSettings.Default.MultithreadMode = cmdMultithreadMode.Checked;
         }
 
         private void CmdHelp_Executed(object sender, EventArgs e)
