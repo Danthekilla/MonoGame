@@ -12,6 +12,9 @@ using Windows.UI.Core;
 using Windows.UI.Input;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Controls;
+using System.Threading.Tasks;
+using Windows.System.Threading;
 
 namespace Microsoft.Xna.Framework
 {
@@ -23,23 +26,34 @@ namespace Microsoft.Xna.Framework
         {
             // The key events are always tied to the window as those will
             // only arrive here if some other control hasn't gotten it.
-            window.KeyDown += CoreWindow_KeyDown;
-            window.KeyUp += CoreWindow_KeyUp;
-            window.VisibilityChanged += CoreWindow_VisibilityChanged;
+            //window.KeyDown += CoreWindow_KeyDown;
+            //window.KeyUp += CoreWindow_KeyUp;
+            //window.VisibilityChanged += CoreWindow_VisibilityChanged;
             window.Activated += CoreWindow_Activated;
             window.SizeChanged += CoreWindow_SizeChanged;
 
-            if (inputElement != null)
+            //if (inputElement != null)
             {
                 // If we have an input UIElement then we bind input events
                 // to it else we'll get events for overlapping XAML controls.
-                inputElement.PointerPressed += UIElement_PointerPressed;
-                inputElement.PointerReleased += UIElement_PointerReleased;
-                inputElement.PointerCanceled += UIElement_PointerReleased;
-                inputElement.PointerMoved += UIElement_PointerMoved;
-                inputElement.PointerWheelChanged += UIElement_PointerWheelChanged;
+                //inputElement.PointerPressed += UIElement_PointerPressed;
+                //inputElement.PointerReleased += UIElement_PointerReleased;
+                //inputElement.PointerCanceled += UIElement_PointerReleased;
+                //inputElement.PointerMoved += UIElement_PointerMoved;
+                //inputElement.PointerWheelChanged += UIElement_PointerWheelChanged;    
+
+                //var workItemHandler = new WorkItemHandler((action) =>
+                //
+                //    SwapChainBackgroundPanel swapChainBackgroundPanel = (SwapChainBackgroundPanel)inputElement;
+                //    CoreIndependentInputSource coreIndependentInputSource = swapChainBackgroundPanel.CreateCoreIndependentInputSource(CoreInputDeviceTypes.Touch);
+                //    coreIndependentInputSource.PointerPressed += coreIndependentInputSource_PointerPressed;
+                //    coreIndependentInputSource.PointerMoved += coreIndependentInputSource_PointerMoved;
+                //    coreIndependentInputSource.PointerReleased += coreIndependentInputSource_PointerReleased;
+                //    coreIndependentInputSource.Dispatcher.ProcessEvents(CoreProcessEventsOption.ProcessUntilQuit);
+                //});
+                //var m_renderLoopWorker = ThreadPool.RunAsync(workItemHandler, WorkItemPriority.High, WorkItemOptions.TimeSliced);
             }
-            else
+            //else
             {
                 // If we only have a CoreWindow then use it for input events.
                 window.PointerPressed += CoreWindow_PointerPressed;
@@ -48,35 +62,82 @@ namespace Microsoft.Xna.Framework
                 window.PointerWheelChanged += CoreWindow_PointerWheelChanged;
             }
         }
+        
+        void coreIndependentInputSource_PointerPressed(object sender, PointerEventArgs args)
+        {
+            EvntIn("PointerPressed", +1);            
+            PointerPressed(args.CurrentPoint, null, null);
+            args.Handled = true;
+            EvntOut("PointerPressed");
+        }
+        
+        void coreIndependentInputSource_PointerMoved(object sender, PointerEventArgs args)
+        {
+            EvntIn("PointerMoved", 0);
+            PointerMoved(args.CurrentPoint);
+            args.Handled = true;
+            EvntOut("PointerMoved");
+        }
+
+        void coreIndependentInputSource_PointerReleased(object sender, PointerEventArgs args)
+        {
+            EvntIn("PointerReleased", -1);
+            PointerReleased(args.CurrentPoint, null, null);
+            args.Handled = true;
+            EvntOut("PointerReleased");
+        }
+        
 
         #region UIElement Events
 
         private void UIElement_PointerPressed(object sender, PointerRoutedEventArgs args)
         {
+            EvntIn("PointerPressed", +1);
             //Capture this pointer so we continue getting events even if it is dragged off us
             ((UIElement)sender).CapturePointer(args.Pointer);
 
             var pointerPoint = args.GetCurrentPoint(null);
             PointerPressed(pointerPoint, sender as UIElement, args.Pointer);
             args.Handled = true;
+            EvntOut("PointerPressed");
         }
 
         private void UIElement_PointerMoved(object sender, PointerRoutedEventArgs args)
         {
+            EvntIn("PointerMoved", 0);
             var pointerPoint = args.GetCurrentPoint(null);
             PointerMoved(pointerPoint);
             args.Handled = true;
+            EvntOut("PointerMoved");
         }
 
         private void UIElement_PointerReleased(object sender, PointerRoutedEventArgs args)
         {
+            EvntIn("PointerReleased", -1);
             ((UIElement)sender).ReleasePointerCapture(args.Pointer);
 
             var pointerPoint = args.GetCurrentPoint(null);
             PointerReleased(pointerPoint, sender as UIElement, args.Pointer);
             args.Handled = true;
+            EvntOut("PointerReleased");
         }
 
+        int touchCount = 0;
+        private void EvntIn(string eventName, int tc)
+        {
+            touchCount += tc;
+            int threadId = Environment.CurrentManagedThreadId;
+            string msg = String.Format("Thread: {0}, {1}, {2}, {3}", threadId, "in ",eventName, touchCount);
+            //System.Diagnostics.Debug.WriteLine(msg);
+        }
+
+        private void EvntOut(string eventName)
+        {
+            int threadId = Environment.CurrentManagedThreadId;
+            string msg = String.Format("Thread: {0}, {1}, {2}", threadId, "out", eventName);
+            //System.Diagnostics.Debug.WriteLine(msg);
+        }
+        
         private void UIElement_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
         {
             var pointerPoint = args.GetCurrentPoint(null);
@@ -133,6 +194,7 @@ namespace Microsoft.Xna.Framework
                 if (target != null)
                     target.CapturePointer(pointer);
             }
+            //target.InvalidateArrange();
         }
 
         private void PointerMoved(PointerPoint pointerPoint)
