@@ -25,12 +25,8 @@ SOFTWARE.
 */
 #endregion License
 
-
 using System;
-using System.Collections.Generic;
-using System.Text;
-
-using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Utilities;
 
 namespace Microsoft.Xna.Framework.Content
 {
@@ -38,7 +34,7 @@ namespace Microsoft.Xna.Framework.Content
     {
         ContentTypeReader elementReader;
 
-        internal ArrayReader()
+        public ArrayReader()
         {
         }
 
@@ -54,8 +50,8 @@ namespace Microsoft.Xna.Framework.Content
             T[] array = existingInstance;
             if (array == null)
                 array = new T[count];
-			Type objectType = typeof(T);
-			if(objectType.IsValueType)
+
+            if (ReflectionHelpers.IsValueType(typeof(T)))
 			{
                 for (uint i = 0; i < count; i++)
                 {
@@ -66,7 +62,7 @@ namespace Microsoft.Xna.Framework.Content
 			{
                 for (uint i = 0; i < count; i++)
                 {
-                    int readerType = input.Read7BitEncodedInt();
+                    var readerType = input.Read7BitEncodedInt();
                 	array[i] = readerType > 0 ? input.ReadObject<T>(input.TypeReaders[readerType - 1]) : default(T);
                 }
 			}

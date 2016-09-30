@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Runtime.InteropServices;
 
 namespace Microsoft.Xna.Framework.Graphics
 {
+    [StructLayout(LayoutKind.Sequential, Pack=1)]
     public struct VertexPositionTexture : IVertexType
     {
         public Vector3 Position;
@@ -31,7 +29,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
         public override string ToString()
         {
-            return string.Format("{{Position:{0} TextureCoordinate:{1}}}", new object[] { this.Position, this.TextureCoordinate });
+            return "{{Position:" + this.Position + " TextureCoordinate:" + this.TextureCoordinate + "}}";
         }
 
         public static bool operator ==(VertexPositionTexture left, VertexPositionTexture right)

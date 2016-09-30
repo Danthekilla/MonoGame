@@ -70,14 +70,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-using MonoTouch.Foundation;
-using MonoTouch.OpenGLES;
-using MonoTouch.UIKit;
+using Foundation;
+using OpenGLES;
+using UIKit;
+using CoreAnimation;
+using ObjCRuntime;
 
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
+//using Microsoft.Xna.Framework.GamerServices;
 
 namespace Microsoft.Xna.Framework
 {
@@ -86,9 +89,7 @@ namespace Microsoft.Xna.Framework
         private iOSGameViewController _viewController;
         private UIWindow _mainWindow;
         private List<NSObject> _applicationObservers;
-		private OpenALSoundController soundControllerInstance = null;
-        private NSTimer _runTimer;
-        private bool _isExitPending;
+        private CADisplayLink _displayLink;
 
         public iOSGamePlatform(Game game) :
             base(game)
@@ -96,26 +97,62 @@ namespace Microsoft.Xna.Framework
             game.Services.AddService(typeof(iOSGamePlatform), this);
 			
 			// Setup our OpenALSoundController to handle our SoundBuffer pools
-			soundControllerInstance = OpenALSoundController.GetInstance;
-			
-            Directory.SetCurrentDirectory(NSBundle.MainBundle.ResourcePath);
+            try
+            {
+                OpenALSoundController soundControllerInstance = OpenALSoundController.GetInstance;
+            }
+            catch (DllNotFoundException ex)
+            {
+                throw (new NoAudioHardwareException("Failed to init OpenALSoundController", ex));
+            }
+
+            //This also runs the TitleContainer static constructor, ensuring it is done on the main thread
+            Directory.SetCurrentDirectory(TitleContainer.Location);
 
             _applicationObservers = new List<NSObject>();
 
+            #if !TVOS
             UIApplication.SharedApplication.SetStatusBarHidden(true, UIStatusBarAnimation.Fade);
+            #endif
 
             // Create a full-screen window
             _mainWindow = new UIWindow (UIScreen.MainScreen.Bounds);
+			//_mainWindow.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions;
+			
             game.Services.AddService (typeof(UIWindow), _mainWindow);
 
             _viewController = new iOSGameViewController(this);
-            _viewController.InterfaceOrientationChanged += ViewController_InterfaceOrientationChanged;
             game.Services.AddService (typeof(UIViewController), _viewController);
             Window = new iOSGameWindow (_viewController);
 
-            _mainWindow.RootViewController = _viewController;
             _mainWindow.Add (_viewController.View);
+
+            _viewController.InterfaceOrientationChanged += ViewController_InterfaceOrientationChanged;
+
+            //(SJ) Why is this called here when it's not in any other project
+            //Guide.Initialise(game);
         }
+
+        public override void TargetElapsedTimeChanged ()
+        {
+            CreateDisplayLink();
+        }
+
+        private void CreateDisplayLink()
+        {
+            if (_displayLink != null)
+                _displayLink.RemoveFromRunLoop(NSRunLoop.Main, NSRunLoop.NSDefaultRunLoopMode);
+
+            _displayLink = UIScreen.MainScreen.CreateDisplayLink(_viewController.View as iOSGameView, new Selector("doTick"));
+
+            // FrameInterval represents how many frames must pass before the selector
+            // is called again. We calculate this by dividing our target elapsed time by
+            // the duration of a frame on iOS (Which is 1/60.0f at the time of writing this).
+            _displayLink.FrameInterval = (int)Math.Round(60f * Game.TargetElapsedTime.TotalSeconds);
+
+            _displayLink.AddToRunLoop(NSRunLoop.Main, NSRunLoop.NSDefaultRunLoopMode);
+        }
+
 
         public override GameRunBehavior DefaultRunBehavior
         {
@@ -158,18 +195,8 @@ namespace Microsoft.Xna.Framework
         public override void BeforeInitialize()
         {
             base.BeforeInitialize ();
-            _viewController.View.MakeCurrent ();
-            TouchPanel.Reset();
 
-            // HACK: Because GraphicsDevice doesn't know anything, we need to
-            //       tell it the current viewport size.  Once GraphicsDevice is
-            //       capable of querying PresentationParameters
-            //       DeviceWindowHandle for the size, this will no longer be
-            //       needed.
-            var gds = (IGraphicsDeviceService)Game.Services.GetService(typeof(IGraphicsDeviceService));
-            if (gds != null && gds.GraphicsDevice != null) {
-                gds.GraphicsDevice.Viewport = new Viewport(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height);
-            }
+            _viewController.View.LayoutSubviews();
         }
 
         public override void RunLoop()
@@ -182,69 +209,50 @@ namespace Microsoft.Xna.Framework
             // Show the window
             _mainWindow.MakeKeyAndVisible();
 
-            Accelerometer.SetupAccelerometer();
+            // In iOS 8+ we need to set the root view controller *after* Window MakeKey
+            // This ensures that the viewController's supported interface orientations
+            // will be respected at launch
+            _mainWindow.RootViewController = _viewController;
+
             BeginObservingUIApplication();
 
             _viewController.View.BecomeFirstResponder();
-            _runTimer = NSTimer.CreateRepeatingScheduledTimer(Game.TargetElapsedTime, Tick);
+            CreateDisplayLink();
         }
 
-        private void Tick()
+        internal void Tick()
         {
             if (!Game.IsActive)
                 return;
 
-            try {
-                if (PerformPendingExit())
-                    return;
-                if (IsPlayingVideo)
-                    return;
+            if (IsPlayingVideo)
+                return;
 
-                // FIXME: Remove this call, and the whole Tick method, once
-                //        GraphicsDevice is where platform-specific Present
-                //        functionality is actually implemented.  At that
-                //        point, it should be possible to pass Game.Tick
-                //        directly to NSTimer.CreateRepeatingTimer.
-                _viewController.View.MakeCurrent();
-                Game.Tick ();
+            // FIXME: Remove this call, and the whole Tick method, once
+            //        GraphicsDevice is where platform-specific Present
+            //        functionality is actually implemented.  At that
+            //        point, it should be possible to pass Game.Tick
+            //        directly to NSTimer.CreateRepeatingTimer.
+            _viewController.View.MakeCurrent();
+            Game.Tick ();
 
-                if (!IsPlayingVideo)
-                    _viewController.View.Present ();
-
-                PerformPendingExit();
-            } catch (Exception ex) {
-#if DEBUG				
-                Console.WriteLine(
-                    "Error while processing the main game loop: {0}\n{1}",
-                    ex.Message, ex.StackTrace);
-#endif
-                Game.Exit ();
+            if (!IsPlayingVideo)
+            {
+                if (Game.GraphicsDevice != null)
+                {
+                    // GraphicsDevice.Present() takes care of actually 
+                    // disposing resources disposed from a non-ui thread
+                    Game.GraphicsDevice.Present();
+                }
+                _viewController.View.Present ();
             }
-        }
-
-        private bool PerformPendingExit()
-        {
-            if (!_isExitPending)
-                return false;
-
-            _isExitPending = false;
-            if (_runTimer != null) {
-                _runTimer.Invalidate ();
-                _runTimer.Dispose ();
-                _runTimer = null;
-            }
-            UIApplication.SharedApplication.SetStatusBarHidden(false, UIStatusBarAnimation.Fade);
-            StopObservingUIApplication ();
-            RaiseAsyncRunLoopEnded ();
-            return true;
         }
 
         public override bool BeforeDraw(GameTime gameTime)
         {
-		// Update our OpenAL sound buffer pools
-		soundControllerInstance.Update();
             if (IsPlayingVideo)
                 return false;
+
             return true;
         }
 
@@ -252,6 +260,7 @@ namespace Microsoft.Xna.Framework
         {
             if (IsPlayingVideo)
                 return false;
+
             return true;
         }
 
@@ -267,19 +276,13 @@ namespace Microsoft.Xna.Framework
 
         public override void Exit()
         {
-            _isExitPending = true;
+            // Do Nothing: iOS games do not "exit" or shut down.
         }
 
         private void BeginObservingUIApplication()
         {
             var events = new Tuple<NSString, Action<NSNotification>>[]
             {
-                Tuple.Create(
-                    UIApplication.WillEnterForegroundNotification,
-                    new Action<NSNotification>(Application_WillEnterForeground)),
-                Tuple.Create(
-                    UIApplication.DidEnterBackgroundNotification,
-                    new Action<NSNotification>(Application_DidEnterBackground)),
                 Tuple.Create(
                     UIApplication.DidBecomeActiveNotification,
                     new Action<NSNotification>(Application_DidBecomeActive)),
@@ -289,37 +292,21 @@ namespace Microsoft.Xna.Framework
                 Tuple.Create(
                     UIApplication.WillTerminateNotification,
                     new Action<NSNotification>(Application_WillTerminate)),
-                Tuple.Create(
-                    UIApplication.DidReceiveMemoryWarningNotification,
-                    new Action<NSNotification>(Application_DidReceiveMemoryWarning))
              };
 
             foreach (var entry in events)
                 _applicationObservers.Add(NSNotificationCenter.DefaultCenter.AddObserver(entry.Item1, entry.Item2));
         }
 
-        private void StopObservingUIApplication()
-        {
-            NSNotificationCenter.DefaultCenter.RemoveObservers(_applicationObservers);
-            _applicationObservers.Clear();
-        }
-
         #region Notification Handling
-
-        private void Application_WillEnterForeground(NSNotification notification)
-        {
-			// Already handled in Application_DidBecomeActive. See below for IsActive state change.	
-        }
-
-        private void Application_DidEnterBackground(NSNotification notification)
-        {
-			// Already handled in Application_WillResignActive. See below for IsActive state change.
-        }
 
         private void Application_DidBecomeActive(NSNotification notification)
         {
             IsActive = true;
-            TouchPanel.Reset();
+            #if TVOS
+            _viewController.ControllerUserInteractionEnabled = false;
+            #endif
+            //TouchPanel.Reset();
         }
 
         private void Application_WillResignActive(NSNotification notification)
@@ -336,32 +323,48 @@ namespace Microsoft.Xna.Framework
 			}
         }
 
-        private void Application_DidReceiveMemoryWarning(NSNotification notification)
-        {
-            // FIXME: Possibly add some more sophisticated behavior here.  It's
-            //        also possible that this is not iOSGamePlatform's job.
-            GC.Collect();
+        #endregion Notification Handling
+
+        #region Helper Property
+
+        private DisplayOrientation CurrentOrientation {
+            get {
+                #if TVOS
+                return DisplayOrientation.LandscapeLeft;
+                #else
+                return OrientationConverter.ToDisplayOrientation(_viewController.InterfaceOrientation);
+                #endif
+            }
         }
 
-        #endregion Notification Handling
+        #endregion
 
 		private void ViewController_InterfaceOrientationChanged (object sender, EventArgs e)
 		{
-			var orientation = OrientationConverter.ToDisplayOrientation (
-				_viewController.InterfaceOrientation);
+			var orientation = CurrentOrientation;
 
 			// FIXME: The presentation parameters for the GraphicsDevice should
 			//        be managed by the GraphicsDevice itself.  Not by
 			//        iOSGamePlatform.
 			var gdm = (GraphicsDeviceManager) Game.Services.GetService (typeof (IGraphicsDeviceManager));
 
-			if (gdm != null) {
+            TouchPanel.DisplayOrientation = orientation;
+
+			if (gdm != null)
+			{	
+
 				var presentParams = gdm.GraphicsDevice.PresentationParameters;
 				presentParams.BackBufferWidth = gdm.PreferredBackBufferWidth;
 				presentParams.BackBufferHeight = gdm.PreferredBackBufferHeight;
+
 				presentParams.DisplayOrientation = orientation;
+
+                // Recalculate our views.
+                ViewController.View.LayoutSubviews();
+				
+                gdm.ApplyChanges();
 			}
-			TouchPanel.DisplayOrientation = orientation;
+			
 		}
 
 		public override void BeginScreenDeviceChange (bool willBeFullScreen)

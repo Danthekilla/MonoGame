@@ -28,9 +28,9 @@ SOFTWARE.
 
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Utilities;
 
 namespace Microsoft.Xna.Framework.Content
 {
@@ -38,7 +38,7 @@ namespace Microsoft.Xna.Framework.Content
     {
         ContentTypeReader elementReader;
 
-        internal ListReader()
+        public ListReader()
         {
         }
 
@@ -48,25 +48,26 @@ namespace Microsoft.Xna.Framework.Content
 			elementReader = manager.GetTypeReader(readerType);
         }
 
+        public override bool CanDeserializeIntoExistingObject
+        {
+            get { return true; }
+        }
 
         protected internal override List<T> Read(ContentReader input, List<T> existingInstance)
         {
             int count = input.ReadInt32();
             List<T> list = existingInstance;
-            if (list == null) list = new List<T>();
+            if (list == null) list = new List<T>(count);
             for (int i = 0; i < count; i++)
             {
-                // list.Add(input.ReadObject<T>(elementReader));
-				
-				Type objectType = typeof(T);
-				if(objectType.IsValueType)
+                if (ReflectionHelpers.IsValueType(typeof(T)))
 				{
                 	list.Add(input.ReadObject<T>(elementReader));
 				}
 				else
 				{
-					int readerType = input.ReadByte();
-                	list.Add(input.ReadObject<T>(input.TypeReaders[readerType - 1]));
+                    var readerType = input.Read7BitEncodedInt();
+                	list.Add(readerType > 0 ? input.ReadObject<T>(input.TypeReaders[readerType - 1]) : default(T));
 				}
             }
             return list;

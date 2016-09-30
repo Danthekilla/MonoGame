@@ -41,8 +41,13 @@ purpose and non-infringement.
 #region Statement
 ﻿using System;
 
+#if PLATFORM_MACOS_LEGACY
 using MonoMac.Foundation;
 using MonoMac.AppKit;
+#else
+using Foundation;
+using AppKit;
+#endif
 
 #endregion Statement
 
@@ -165,12 +170,17 @@ namespace Microsoft.Xna.Framework.GamerServices
 
 		delegate void AwardAchievementDelegate (string achievementId, double percentageComplete);
 
-		public IAsyncResult BeginAwardAchievement (
-	string achievementId,
-			double percentageComplete,
-	AsyncCallback callback,
-	Object state
-)
+        public IAsyncResult BeginAwardAchievement(string achievementId, AsyncCallback callback, Object state)
+        {
+            return BeginAwardAchievement(achievementId, 100.0, callback, state);
+        }
+
+        public IAsyncResult BeginAwardAchievement(
+            string achievementId,
+            double percentageComplete,
+            AsyncCallback callback,
+            Object state
+        )
 		{	
 			// Go off and award the achievement
 			AwardAchievementDelegate aad = DoAwardAchievement; 

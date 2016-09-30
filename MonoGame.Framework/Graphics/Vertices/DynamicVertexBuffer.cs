@@ -1,31 +1,41 @@
-﻿using System;
+// MonoGame - Copyright (C) The MonoGame Team
+// This file is subject to the terms and conditions defined in
+// file 'LICENSE.txt', which is part of this source code package.
+
+using System;
+using System.Runtime.InteropServices;
 
 namespace Microsoft.Xna.Framework.Graphics
 {
-    public class DynamicVertexBuffer : VertexBuffer
+	public class DynamicVertexBuffer : VertexBuffer
     {
-		internal int UserOffset;
+        /// <summary>
+        /// Special offset used internally by GraphicsDevice.DrawUserXXX() methods.
+        /// </summary>
+        internal int UserOffset;
 
-		public bool IsContentLost { get { return false; } }
+        public bool IsContentLost { get { return false; } }
 
-        public DynamicVertexBuffer(GraphicsDevice graphics, Type type, int vertexCount, BufferUsage bufferUsage)
-            : base(graphics, type, vertexCount, bufferUsage)
+        public DynamicVertexBuffer(GraphicsDevice graphicsDevice, VertexDeclaration vertexDeclaration, int vertexCount, BufferUsage bufferUsage)
+            : base(graphicsDevice, vertexDeclaration, vertexCount, bufferUsage, true)
+        {
+        }
+		
+		public DynamicVertexBuffer(GraphicsDevice graphicsDevice, Type type, int vertexCount, BufferUsage bufferUsage)
+            : base(graphicsDevice, VertexDeclaration.FromType(type), vertexCount, bufferUsage, true)
         {
         }
 
-        public DynamicVertexBuffer (GraphicsDevice graphics, VertexDeclaration vertexDecs, int vertexCount, BufferUsage bufferUsage)
-            : base (graphics,vertexDecs.GetType(), vertexCount,bufferUsage)
+        public void SetData<T>(int offsetInBytes, T[] data, int startIndex, int elementCount, int vertexStride, SetDataOptions options) where T : struct
         {
-        }
-
-		public void SetData<T>(int offsetInBytes, T[] data, int startIndex, int elementCount, SetDataOptions options) where T : struct
-        {
-            base.SetData<T>(offsetInBytes, data, startIndex, elementCount, VertexDeclaration.VertexStride, options);
+            base.SetDataInternal<T>(offsetInBytes, data, startIndex, elementCount, vertexStride, options);
         }
 
         public void SetData<T>(T[] data, int startIndex, int elementCount, SetDataOptions options) where T : struct
         {
-			base.SetData<T>(0, data, startIndex, elementCount, VertexDeclaration.VertexStride, options);
+            var elementSizeInBytes = Marshal.SizeOf(typeof(T));
+            base.SetDataInternal<T>(0, data, startIndex, elementCount, elementSizeInBytes, options);
         }
     }
 }
+
