@@ -783,11 +783,9 @@ namespace Microsoft.Xna.Framework.Graphics
             var flippedHorz = (effects & SpriteEffects.FlipHorizontally) == SpriteEffects.FlipHorizontally;
 
             if (flippedVert || flippedHorz)
-            {
-                Vector2 size;
-                
+            {   
                 var source = new SpriteFont.CharacterSource(text);
-                spriteFont.MeasureString(ref source, out size);
+                var size = spriteFont.MeasureString(ref source);
 
                 if (flippedHorz)
                 {
@@ -1078,8 +1076,7 @@ namespace Microsoft.Xna.Framework.Graphics
             if (flippedVert || flippedHorz)
             {
                 var source = new SpriteFont.CharacterSource(text);
-                Vector2 size;
-                spriteFont.MeasureString(ref source, out size);
+                var size = spriteFont.MeasureString(ref source);
 
                 if (flippedHorz)
                 {
