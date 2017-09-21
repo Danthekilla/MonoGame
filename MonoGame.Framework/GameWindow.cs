@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.ComponentModel;
+using System.Threading;
 
 namespace Microsoft.Xna.Framework {
 	public abstract class GameWindow {
@@ -73,8 +74,27 @@ namespace Microsoft.Xna.Framework {
             }
         }
 
-        internal MouseState MouseState;
+        private object _mouseStateLock = new object();
+        private MouseState _mouseState;
 	    internal TouchPanelState TouchPanelState;
+
+        internal MouseState MouseState
+        {
+            get
+            {
+                lock (_mouseStateLock)
+                {
+                    return _mouseState;
+                }
+            }
+            set
+            {
+                lock (_mouseStateLock)
+                {
+                    _mouseState = value;
+                }
+            }
+        }
 
         protected GameWindow()
         {
